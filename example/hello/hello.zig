@@ -6,10 +6,16 @@ const wayland = @import("wayland");
 const wl = wayland.client.wl;
 const xdg = wayland.client.xdg;
 
-const Context = struct {
+const Globals = struct {
     shm: ?*wl.Shm,
     compositor: ?*wl.Compositor,
     wm_base: ?*xdg.WmBase,
+};
+
+const State = struct {
+    surface: *wl.Surface,
+    configured: bool,
+    running: bool,
 };
 
 pub fn main() anyerror!void {
@@ -18,20 +24,20 @@ pub fn main() anyerror!void {
     const registry = try display.getRegistry();
     defer registry.destroy();
 
-    var context = Context{
+    var globals = Globals{
         .shm = null,
         .compositor = null,
         .wm_base = null,
     };
 
-    registry.setListener(*Context, registryListener, &context);
+    registry.setListener(*Globals, registryListener, &globals);
     if (display.roundtrip() != .SUCCESS) return error.RoundtripFailed;
 
-    const shm = context.shm orelse return error.NoWlShm;
+    const shm = globals.shm orelse return error.NoWlShm;
     defer shm.destroy();
-    const compositor = context.compositor orelse return error.NoWlCompositor;
+    const compositor = globals.compositor orelse return error.NoWlCompositor;
     defer compositor.destroy();
-    const wm_base = context.wm_base orelse return error.NoXdgWmBase;
+    const wm_base = globals.wm_base orelse return error.NoXdgWmBase;
     defer wm_base.destroy();
 
     const buffer = blk: {
@@ -66,49 +72,56 @@ pub fn main() anyerror!void {
     const xdg_toplevel = try xdg_surface.getToplevel();
     defer xdg_toplevel.destroy();
 
-    var running = true;
+    var state: State = .{
+        .surface = surface,
+        .configured = false,
+        .running = true,
+    };
 
-    xdg_surface.setListener(*wl.Surface, xdgSurfaceListener, surface);
-    xdg_toplevel.setListener(*bool, xdgToplevelListener, &running);
+    xdg_surface.setListener(*State, xdgSurfaceListener, &state);
+    xdg_toplevel.setListener(*State, xdgToplevelListener, &state);
 
     surface.commit();
-    if (display.roundtrip() != .SUCCESS) return error.RoundtripFailed;
+    while (!state.configured) {
+        if (display.dispatch() != .SUCCESS) return error.DispatchFailed;
+    }
 
     surface.attach(buffer, 0, 0);
     surface.commit();
 
-    while (running) {
+    while (state.running) {
         if (display.dispatch() != .SUCCESS) return error.DispatchFailed;
     }
 }
 
-fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, context: *Context) void {
+fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, globals: *Globals) void {
     switch (event) {
         .global => |global| {
             if (mem.orderZ(u8, global.interface, wl.Compositor.interface.name) == .eq) {
-                context.compositor = registry.bind(global.name, wl.Compositor, 1) catch return;
+                globals.compositor = registry.bind(global.name, wl.Compositor, 1) catch return;
             } else if (mem.orderZ(u8, global.interface, wl.Shm.interface.name) == .eq) {
-                context.shm = registry.bind(global.name, wl.Shm, 1) catch return;
+                globals.shm = registry.bind(global.name, wl.Shm, 1) catch return;
             } else if (mem.orderZ(u8, global.interface, xdg.WmBase.interface.name) == .eq) {
-                context.wm_base = registry.bind(global.name, xdg.WmBase, 1) catch return;
+                globals.wm_base = registry.bind(global.name, xdg.WmBase, 1) catch return;
             }
         },
         .global_remove => {},
     }
 }
 
-fn xdgSurfaceListener(xdg_surface: *xdg.Surface, event: xdg.Surface.Event, surface: *wl.Surface) void {
+fn xdgSurfaceListener(xdg_surface: *xdg.Surface, event: xdg.Surface.Event, state: *State) void {
     switch (event) {
         .configure => |configure| {
             xdg_surface.ackConfigure(configure.serial);
-            surface.commit();
+            state.surface.commit();
+            state.configured = true;
         },
     }
 }
 
-fn xdgToplevelListener(_: *xdg.Toplevel, event: xdg.Toplevel.Event, running: *bool) void {
+fn xdgToplevelListener(_: *xdg.Toplevel, event: xdg.Toplevel.Event, state: *State) void {
     switch (event) {
         .configure => {},
-        .close => running.* = false,
+        .close => state.running = false,
     }
 }
