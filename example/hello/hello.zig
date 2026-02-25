@@ -14,7 +14,9 @@ const Context = struct {
 
 pub fn main() anyerror!void {
     const display = try wl.Display.connect(null);
+    defer display.disconnect();
     const registry = try display.getRegistry();
+    defer registry.destroy();
 
     var context = Context{
         .shm = null,
@@ -26,8 +28,11 @@ pub fn main() anyerror!void {
     if (display.roundtrip() != .SUCCESS) return error.RoundtripFailed;
 
     const shm = context.shm orelse return error.NoWlShm;
+    defer shm.destroy();
     const compositor = context.compositor orelse return error.NoWlCompositor;
+    defer compositor.destroy();
     const wm_base = context.wm_base orelse return error.NoXdgWmBase;
+    defer wm_base.destroy();
 
     const buffer = blk: {
         const width = 128;
