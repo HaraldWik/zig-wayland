@@ -10,20 +10,20 @@ pub const Argument = common.Argument;
 /// decided to hide wl_resources with opaque pointers in the same way that
 /// wayland-client does with wl_proxys. This of course creates a name conflict.
 pub const Server = opaque {
-    extern fn wl_display_create() ?*Server;
-    pub fn create() !*Server {
-        return wl_display_create() orelse error.ServerCreateFailed;
+    pub inline fn create() error{ServerCreateFailed}!*Server {
+        return ffi.server.wl_display_create() orelse error.ServerCreateFailed;
     }
 
-    extern fn wl_display_destroy(server: *Server) void;
-    pub const destroy = wl_display_destroy;
+    pub inline fn destroy(_server: *Server) void {
+        ffi.server.wl_display_destroy(_server);
+    }
 
-    extern fn wl_display_get_event_loop(server: *Server) *EventLoop;
-    pub const getEventLoop = wl_display_get_event_loop;
+    pub inline fn getEventLoop(_server: *Server) *EventLoop {
+        return ffi.server.wl_display_get_event_loop(_server);
+    }
 
-    extern fn wl_display_add_socket(server: *Server, name: [*:0]const u8) c_int;
-    pub fn addSocket(_server: *Server, name: [*:0]const u8) !void {
-        if (wl_display_add_socket(_server, name) == -1)
+    pub inline fn addSocket(_server: *Server, name: [*:0]const u8) error{AddSocketFailed}!void {
+        if (ffi.server.wl_display_add_socket(_server, name) == -1)
             return error.AddSocketFailed;
     }
 
@@ -32,7 +32,7 @@ pub const Server = opaque {
     // the library was stabilized. Because of this, it is a good idea to never
     // call the socket wayland-0. So, instead of binding to wayland-server's
     // wl_display_add_socket_auto we implement a version which skips wayland-0.
-    pub fn addSocketAuto(_server: *Server, buf: *[11]u8) ![:0]const u8 {
+    pub fn addSocketAuto(_server: *Server, buf: *[11]u8) error{AddSocketFailed}![:0]const u8 {
         // Don't use wayland-0
         var i: u32 = 1;
         while (i <= 32) : (i += 1) {
@@ -43,87 +43,83 @@ pub const Server = opaque {
         return error.AddSocketFailed;
     }
 
-    extern fn wl_display_add_socket_fd(_server: *Server, sock_fd: c_int) c_int;
-    pub fn addSocketFd(_server: *Server, sock_fd: c_int) !void {
-        if (wl_display_add_socket_fd(_server, sock_fd) == -1)
+    pub inline fn addSocketFd(_server: *Server, sock_fd: c_int) error{AddSocketFailed}!void {
+        if (ffi.server.wl_display_add_socket_fd(_server, sock_fd) == -1)
             return error.AddSocketFailed;
     }
 
-    extern fn wl_display_terminate(_server: *Server) void;
-    pub const terminate = wl_display_terminate;
+    pub inline fn terminate(_server: *Server) void {
+        ffi.server.wl_display_terminate(_server);
+    }
 
-    extern fn wl_display_run(_server: *Server) void;
-    pub const run = wl_display_run;
+    pub inline fn run(_server: *Server) void {
+        ffi.server.wl_display_run(_server);
+    }
 
-    extern fn wl_display_flush_clients(_server: *Server) void;
-    pub const flushClients = wl_display_flush_clients;
+    pub inline fn flushClients(_server: *Server) void {
+        ffi.server.wl_display_flush_clients(_server);
+    }
 
-    extern fn wl_display_destroy_clients(_server: *Server) void;
-    pub const destroyClients = wl_display_destroy_clients;
+    pub inline fn destroyClients(_server: *Server) void {
+        ffi.server.wl_display_destroy_clients(_server);
+    }
 
-    extern fn wl_display_get_serial(_server: *Server) u32;
-    pub const getSerial = wl_display_get_serial;
+    pub inline fn getSerial(_server: *Server) u32 {
+        return ffi.server.wl_display_get_serial(_server);
+    }
 
-    extern fn wl_display_next_serial(_server: *Server) u32;
-    pub const nextSerial = wl_display_next_serial;
+    pub inline fn nextSerial(_server: *Server) u32 {
+        return ffi.server.wl_display_next_serial(_server);
+    }
 
-    extern fn wl_display_add_destroy_listener(_server: *Server, listener: *Listener(*Server)) void;
-    pub const addDestroyListener = wl_display_add_destroy_listener;
+    pub inline fn addDestroyListener(_server: *Server, listener: *Listener(*Server)) void {
+        ffi.server.wl_display_add_destroy_listener(_server, listener);
+    }
 
-    extern fn wl_display_add_client_created_listener(_server: *Server, listener: *Listener(*Client)) void;
-    pub const addClientCreatedListener = wl_display_add_client_created_listener;
+    pub inline fn addClientCreatedListener(_server: *Server, listener: *Listener(*Client)) void {
+        ffi.server.wl_display_add_client_created_listener(_server, listener);
+    }
 
     // Doesn't really make sense with our Listener API as we would need to
     // pass a pointer to the wrapper function
-    //extern fn wl_display_get_destroy_listener(_server: *Server, notify: @TypeOf(Listener(*Server).notify)) ?*Listener(*Server);
+    //fn wl_display_get_destroy_listener(_server: *Server, notify: @TypeOf(Listener(*Server).notify)) ?*Listener(*Server);
 
-    extern fn wl_display_set_global_filter(
-        _server: *Server,
-        filter: *const fn (_client: *const Client, global: *const Global, data: ?*anyopaque) callconv(.c) bool,
-        data: ?*anyopaque,
-    ) void;
     pub inline fn setGlobalFilter(
         _server: *Server,
         comptime T: type,
         comptime filter: fn (_client: *const Client, global: *const Global, data: T) bool,
         data: T,
     ) void {
-        wl_display_set_global_filter(
+        ffi.server.wl_display_set_global_filter(
             _server,
             struct {
-                fn _wrapper(_client: *const Client, _global: *const Global, _data: ?*anyopaque) callconv(.c) bool {
-                    return filter(_client, _global, @ptrCast(@alignCast(_data)));
+                fn _wrapper(_client: *const Client, global: *const Global, _data: ?*anyopaque) callconv(.c) bool {
+                    return filter(_client, global, @ptrCast(@alignCast(_data)));
                 }
             }._wrapper,
             data,
         );
     }
 
-    extern fn wl_display_get_client_list(_server: *Server) *list.Head(Client, null);
-    pub const getClientList = wl_display_get_client_list;
-
-    extern fn wl_display_init_shm(_server: *Server) c_int;
-    pub fn initShm(_server: *Server) !void {
-        if (wl_display_init_shm(_server) == -1) return error.OutOfMemory;
+    pub inline fn getClientList(_server: *Server) *list.Head(Client, null) {
+        return ffi.server.wl_display_get_client_list(_server);
     }
 
-    extern fn wl_display_add_shm_format(_server: *Server, format: u32) ?*u32;
-    pub fn addShmFormat(_server: *Server, format: u32) !*u32 {
-        return wl_display_add_shm_format(_server, format) orelse error.OutOfMemory;
+    pub inline fn initShm(_server: *Server) error{OutOfMemory}!void {
+        if (ffi.server.wl_display_init_shm(_server) == -1) return error.OutOfMemory;
     }
 
-    extern fn wl_display_add_protocol_logger(
-        _server: *Server,
-        func: *const fn (data: ?*anyopaque, direction: ProtocolLogger.Type, message: *const ProtocolLogger.LogMessage) callconv(.c) void,
-        data: ?*anyopaque,
-    ) void;
+    pub inline fn addShmFormat(_server: *Server, format: u32) error{OutOfMemory}!*u32 {
+        return ffi.server.wl_display_add_shm_format(_server, format) orelse error.OutOfMemory;
+    }
+
     pub inline fn addProtocolLogger(
         _server: *Server,
         comptime T: type,
         comptime func: fn (data: T, direction: ProtocolLogger.Type, message: *const ProtocolLogger.LogMessage) void,
         data: T,
     ) void {
-        wl_display_add_protocol_logger(
+        ffi.server.wl_display_add_protocol_logger(
             _server,
             struct {
                 fn _wrapper(_data: ?*anyopaque, _direction: ProtocolLogger.Type, _message: *const ProtocolLogger.LogMessage) callconv(.c) void {
@@ -136,65 +132,69 @@ pub const Server = opaque {
 };
 
 pub const Client = opaque {
-    extern fn wl_client_create(_server: *Server, fd: c_int) ?*Client;
-    pub const create = wl_client_create;
+    pub inline fn create(_server: *Server, fd: c_int) ?*Client {
+        return ffi.server.wl_client_create(_server, fd);
+    }
 
-    extern fn wl_client_destroy(_client: *Client) void;
-    pub const destroy = wl_client_destroy;
+    pub inline fn destroy(_client: *Client) void {
+        ffi.server.wl_client_destroy(_client);
+    }
 
-    extern fn wl_client_flush(_client: *Client) void;
-    pub const flush = wl_client_flush;
+    pub inline fn flush(_client: *Client) void {
+        ffi.server.wl_client_flush(_client);
+    }
 
-    extern fn wl_client_get_link(_client: *Client) *list.Link;
-    pub const getLink = wl_client_get_link;
+    pub inline fn getLink(_client: *Client) *list.Link {
+        return ffi.server.wl_client_get_link(_client);
+    }
 
-    extern fn wl_client_from_link(link: *list.Link) *Client;
-    pub const fromLink = wl_client_from_link;
+    pub inline fn fromLink(link: *list.Link) *Client {
+        return ffi.server.wl_client_from_link(link);
+    }
 
-    const Credentials = struct {
+    pub const Credentials = struct {
         pid: posix.pid_t,
         gid: posix.gid_t,
         uid: posix.uid_t,
     };
-    extern fn wl_client_get_credentials(_client: *Client, pid: *posix.pid_t, uid: *posix.uid_t, gid: *posix.gid_t) void;
-    pub fn getCredentials(_client: *Client) Credentials {
+    pub inline fn getCredentials(_client: *Client) Credentials {
         var credentials: Credentials = undefined;
-        wl_client_get_credentials(_client, &credentials.pid, &credentials.uid, &credentials.gid);
+        ffi.server.wl_client_get_credentials(_client, &credentials.pid, &credentials.uid, &credentials.gid);
         return credentials;
     }
 
-    extern fn wl_client_add_destroy_listener(_client: *Client, listener: *Listener(*Client)) void;
-    pub const addDestroyListener = wl_client_add_destroy_listener;
+    pub inline fn addDestroyListener(_client: *Client, listener: *Listener(*Client)) void {
+        ffi.server.wl_client_add_destroy_listener(_client, listener);
+    }
 
     // Doesn't really make sense with our Listener API as we would need to
     // pass a pointer to the wrapper function
-    //extern fn wl_client_get_destroy_listener(_client: *Client, notify: @TypeOf(Listener(*Client).notify)) ?*Listener(*Client);
+    //fn wl_client_get_destroy_listener(_client: *Client, notify: @TypeOf(Listener(*Client).notify)) ?*Listener(*Client);
 
-    extern fn wl_client_get_object(_client: *Client, id: u32) ?*Resource;
-    pub const getObject = wl_client_get_object;
+    pub inline fn getObject(_client: *Client, id: u32) ?*Resource {
+        return ffi.server.wl_client_get_object(_client, id);
+    }
 
-    extern fn wl_client_post_no_memory(_client: *Client) void;
-    pub const postNoMemory = wl_client_post_no_memory;
+    pub inline fn postNoMemory(_client: *Client) void {
+        ffi.server.wl_client_post_no_memory(_client);
+    }
 
-    extern fn wl_client_post_implementation_error(_client: *Client, msg: [*:0]const u8, ...) void;
-    pub const postImplementationError = wl_client_post_implementation_error;
+    pub inline fn postImplementationError(_client: *Client, msg: [*:0]const u8) void {
+        ffi.server.wl_client_post_implementation_error(_client, "%s", msg);
+    }
 
-    extern fn wl_client_add_resource_created_listener(_client: *Client, listener: *Listener(*Resource)) void;
-    pub const addResourceCreatedListener = wl_client_add_resource_created_listener;
+    pub inline fn addResourceCreatedListener(_client: *Client, listener: *Listener(*Resource)) void {
+        ffi.server.wl_client_add_resource_created_listener(_client, listener);
+    }
 
-    const IteratorResult = enum(c_int) { stop, cont };
-    extern fn wl_client_for_each_resource(
-        _client: *Client,
-        iterator: *const fn (resource: *Resource, data: ?*anyopaque) callconv(.c) IteratorResult,
-        data: ?*anyopaque,
-    ) void;
+    pub const IteratorResult = enum(c_int) { stop, cont };
     pub inline fn forEachResource(
         _client: *Client,
         comptime T: type,
         comptime iterator: fn (resource: *Resource, data: T) IteratorResult,
         data: T,
     ) void {
-        wl_client_for_each_resource(
+        ffi.server.wl_client_for_each_resource(
             _client,
             struct {
                 fn _wrapper(_resource: *Resource, _data: ?*anyopaque) callconv(.c) IteratorResult {
@@ -205,21 +205,16 @@ pub const Client = opaque {
         );
     }
 
-    extern fn wl_client_get_fd(_client: *Client) c_int;
-    pub const getFd = wl_client_get_fd;
+    pub inline fn getFd(_client: *Client) c_int {
+        return ffi.server.wl_client_get_fd(_client);
+    }
 
-    extern fn wl_client_get_display(_client: *Client) *Server;
-    pub const getDisplay = wl_client_get_display;
+    pub inline fn getDisplay(_client: *Client) *Server {
+        return ffi.server.wl_client_get_display(_client);
+    }
 };
 
 pub const Global = opaque {
-    extern fn wl_global_create(
-        _server: *Server,
-        interface: *const Interface,
-        version: c_int,
-        data: ?*anyopaque,
-        bind: *const fn (_client: *Client, data: ?*anyopaque, version: u32, id: u32) callconv(.c) void,
-    ) ?*Global;
     pub inline fn create(
         _server: *Server,
         comptime T: type,
@@ -228,7 +223,7 @@ pub const Global = opaque {
         data: DataT,
         comptime bind: fn (_client: *Client, data: DataT, version: u32, id: u32) void,
     ) error{GlobalCreateFailed}!*Global {
-        return wl_global_create(
+        return ffi.server.wl_global_create(
             _server,
             T.interface,
             @as(c_int, @intCast(version)),
@@ -241,46 +236,55 @@ pub const Global = opaque {
         ) orelse error.GlobalCreateFailed;
     }
 
-    extern fn wl_global_remove(global: *Global) void;
-    pub const remove = wl_global_remove;
+    pub inline fn remove(global: *Global) void {
+        ffi.server.wl_global_remove(global);
+    }
 
-    extern fn wl_global_destroy(global: *Global) void;
-    pub const destroy = wl_global_destroy;
+    pub inline fn destroy(global: *Global) void {
+        ffi.server.wl_global_destroy(global);
+    }
 
-    extern fn wl_global_get_interface(global: *const Global) *const Interface;
-    pub const getInterface = wl_global_get_interface;
+    pub inline fn getInterface(global: *const Global) *const Interface {
+        return ffi.server.wl_global_get_interface(global);
+    }
 
-    extern fn wl_global_get_name(global: *const Global, _client: *const Client) u32;
-    pub const getName = wl_global_get_name;
+    pub inline fn getName(global: *const Global, _client: *const Client) u32 {
+        return ffi.server.wl_global_get_name(global, _client);
+    }
 
-    extern fn wl_global_get_user_data(global: *const Global) ?*anyopaque;
-    pub const getUserData = wl_global_get_user_data;
+    pub inline fn getUserData(global: *const Global) ?*anyopaque {
+        return ffi.server.wl_global_get_user_data(global);
+    }
 };
 
 pub const Resource = opaque {
-    extern fn wl_resource_create(_client: *Client, interface: *const Interface, version: c_int, id: u32) ?*Resource;
     pub inline fn create(_client: *Client, comptime T: type, version: u32, id: u32) error{ResourceCreateFailed}!*Resource {
         // This is only a c_int because of legacy libwayland reasons. Negative versions are invalid.
         // Version is a u32 on the wire and for wl_global, wl_proxy, etc.
-        return wl_resource_create(_client, T.interface, @as(c_int, @intCast(version)), id) orelse error.ResourceCreateFailed;
+        return ffi.server.wl_resource_create(_client, T.interface, @as(c_int, @intCast(version)), id) orelse error.ResourceCreateFailed;
     }
 
-    extern fn wl_resource_destroy(resource: *Resource) void;
-    pub const destroy = wl_resource_destroy;
+    pub inline fn destroy(resource: *Resource) void {
+        ffi.server.wl_resource_destroy(resource);
+    }
 
-    extern fn wl_resource_post_event_array(resource: *Resource, opcode: u32, args: ?[*]Argument) void;
-    pub const postEvent = wl_resource_post_event_array;
+    pub inline fn postEvent(resource: *Resource, opcode: u32, args: ?[*]Argument) void {
+        ffi.server.wl_resource_post_event_array(resource, opcode, args);
+    }
 
-    extern fn wl_resource_queue_event_array(resource: *Resource, opcode: u32, args: ?[*]Argument) void;
-    pub const queueEvent = wl_resource_queue_event_array;
+    pub inline fn queueEvent(resource: *Resource, opcode: u32, args: ?[*]Argument) void {
+        ffi.server.wl_resource_queue_event_array(resource, opcode, args);
+    }
 
-    extern fn wl_resource_post_error(resource: *Resource, code: u32, message: [*:0]const u8, ...) void;
-    pub const postError = wl_resource_post_error;
+    pub inline fn postError(resource: *Resource, code: u32, message: [*:0]const u8) void {
+        ffi.server.wl_resource_post_error(resource, code, "%s", message);
+    }
 
-    extern fn wl_resource_post_no_memory(resource: *Resource) void;
-    pub const postNoMemory = wl_resource_post_no_memory;
+    pub inline fn postNoMemory(resource: *Resource) void {
+        ffi.server.wl_resource_post_no_memory(resource);
+    }
 
-    const DispatcherFn = fn (
+    pub const DispatcherFn = fn (
         implementation: ?*const anyopaque,
         resource: *Resource,
         opcode: u32,
@@ -288,61 +292,61 @@ pub const Resource = opaque {
         args: [*]Argument,
     ) callconv(.c) c_int;
     pub const DestroyFn = fn (resource: *Resource) callconv(.c) void;
-    extern fn wl_resource_set_dispatcher(
-        resource: *Resource,
-        dispatcher: ?*const DispatcherFn,
-        implementation: ?*const anyopaque,
-        data: ?*anyopaque,
-        destroy_fn: ?*const DestroyFn,
-    ) void;
-    pub fn setDispatcher(
+    pub inline fn setDispatcher(
         resource: *Resource,
         dispatcher: ?*const DispatcherFn,
         implementation: ?*const anyopaque,
         data: ?*anyopaque,
         destroy_fn: ?*const DestroyFn,
     ) void {
-        wl_resource_set_dispatcher(resource, dispatcher, implementation, data, destroy_fn);
+        ffi.server.wl_resource_set_dispatcher(resource, dispatcher, implementation, data, destroy_fn);
     }
 
-    extern fn wl_resource_get_user_data(resource: *Resource) ?*anyopaque;
-    pub const getUserData = wl_resource_get_user_data;
+    pub inline fn getUserData(resource: *Resource) ?*anyopaque {
+        return ffi.server.wl_resource_get_user_data(resource);
+    }
 
-    extern fn wl_resource_get_id(resource: *Resource) u32;
-    pub const getId = wl_resource_get_id;
+    pub inline fn getId(resource: *Resource) u32 {
+        return ffi.server.wl_resource_get_id(resource);
+    }
 
-    extern fn wl_resource_get_link(resource: *Resource) *list.Link;
-    pub const getLink = wl_resource_get_link;
+    pub inline fn getLink(resource: *Resource) *list.Link {
+        return ffi.server.wl_resource_get_link(resource);
+    }
 
-    extern fn wl_resource_from_link(link: *list.Link) *Resource;
-    pub const fromLink = wl_resource_from_link;
+    pub inline fn fromLink(link: *list.Link) *Resource {
+        return ffi.server.wl_resource_from_link(link);
+    }
 
-    extern fn wl_resource_find_for_client(list: *list.Head(Resource, null), _client: *Client) ?*Resource;
-    pub const findForClient = wl_resource_find_for_client;
+    pub inline fn findForClient(_list: *list.Head(Resource, null), _client: *Client) ?*Resource {
+        return ffi.server.wl_resource_find_for_client(_list, _client);
+    }
 
-    extern fn wl_resource_get_client(resource: *Resource) *Client;
-    pub const getClient = wl_resource_get_client;
+    pub inline fn getClient(resource: *Resource) *Client {
+        return ffi.server.wl_resource_get_client(resource);
+    }
 
-    extern fn wl_resource_get_version(resource: *Resource) c_int;
-    pub fn getVersion(resource: *Resource) u32 {
+    pub inline fn getVersion(resource: *Resource) u32 {
         // The fact that wl_resource.version is a int in libwayland is
         // a mistake. Negative versions are impossible and u32 is used
         // everywhere else in libwayland
-        return @as(u32, @intCast(wl_resource_get_version(resource)));
+        return @as(u32, @intCast(ffi.server.wl_resource_get_version(resource)));
     }
 
     // TOOD: unsure if this should be bound
-    extern fn wl_resource_set_destructor(resource: *Resource, destroy: DestroyFn) void;
+    //fn wl_resource_set_destructor(resource: *Resource, destroy: DestroyFn) void;
 
-    extern fn wl_resource_get_class(resource: *Resource) [*:0]const u8;
-    pub const getClass = wl_resource_get_class;
+    pub inline fn getClass(resource: *Resource) [*:0]const u8 {
+        return ffi.server.wl_resource_get_class(resource);
+    }
 
-    extern fn wl_resource_add_destroy_listener(resource: *Resource, listener: *Listener(*Resource)) void;
-    pub const addDestroyListener = wl_resource_add_destroy_listener;
+    pub inline fn addDestroyListener(resource: *Resource, listener: *Listener(*Resource)) void {
+        ffi.server.wl_resource_add_destroy_listener(resource, listener);
+    }
 
     // Doesn't really make sense with our Listener API as we would need to
     // pass a pointer to the wrapper function
-    //extern fn wl_resource_get_destroy_listener(resource: *Resource, notify: @TypeOf(Listener(*Resource).notify)) ?*Listener(*Resource);
+    //fn wl_resource_get_destroy_listener(resource: *Resource, notify: @TypeOf(Listener(*Resource).notify)) ?*Listener(*Resource);
 };
 
 pub const ProtocolLogger = opaque {
@@ -359,8 +363,9 @@ pub const ProtocolLogger = opaque {
         arguments: ?[*]Argument,
     };
 
-    extern fn wl_protocol_logger_destroy(logger: *ProtocolLogger) void;
-    pub const destroy = wl_protocol_logger_destroy;
+    pub inline fn destroy(logger: *ProtocolLogger) void {
+        ffi.server.wl_protocol_logger_destroy(logger);
+    }
 };
 
 pub fn Listener(comptime T: type) type {
@@ -468,21 +473,14 @@ pub const EventMask = packed struct(u32) {
 };
 
 pub const EventLoop = opaque {
-    extern fn wl_event_loop_create() ?*EventLoop;
-    pub fn create() !*EventLoop {
-        return wl_event_loop_create() orelse error.EventLoopCreateFailed;
+    pub inline fn create() error{EventLoopCreateFailed}!*EventLoop {
+        return ffi.server.wl_event_loop_create() orelse error.EventLoopCreateFailed;
     }
 
-    extern fn wl_event_loop_destroy(loop: *EventLoop) void;
-    pub const destroy = wl_event_loop_destroy;
+    pub inline fn destroy(loop: *EventLoop) void {
+        ffi.server.wl_event_loop_destroy(loop);
+    }
 
-    extern fn wl_event_loop_add_fd(
-        loop: *EventLoop,
-        fd: c_int,
-        mask: u32,
-        func: *const fn (fd: c_int, mask: u32, data: ?*anyopaque) callconv(.c) c_int,
-        data: ?*anyopaque,
-    ) ?*EventSource;
     pub inline fn addFd(
         loop: *EventLoop,
         comptime T: type,
@@ -491,7 +489,7 @@ pub const EventLoop = opaque {
         comptime func: fn (fd: c_int, mask: EventMask, data: T) c_int,
         data: T,
     ) error{AddFdFailed}!*EventSource {
-        return wl_event_loop_add_fd(
+        return ffi.server.wl_event_loop_add_fd(
             loop,
             fd,
             @bitCast(mask),
@@ -504,18 +502,13 @@ pub const EventLoop = opaque {
         ) orelse error.AddFdFailed;
     }
 
-    extern fn wl_event_loop_add_timer(
-        loop: *EventLoop,
-        func: *const fn (data: ?*anyopaque) callconv(.c) c_int,
-        data: ?*anyopaque,
-    ) ?*EventSource;
     pub inline fn addTimer(
         loop: *EventLoop,
         comptime T: type,
         comptime func: fn (data: T) c_int,
         data: T,
     ) error{AddTimerFailed}!*EventSource {
-        return wl_event_loop_add_timer(
+        return ffi.server.wl_event_loop_add_timer(
             loop,
             struct {
                 fn _wrapper(_data: ?*anyopaque) callconv(.c) c_int {
@@ -526,12 +519,6 @@ pub const EventLoop = opaque {
         ) orelse error.AddTimerFailed;
     }
 
-    extern fn wl_event_loop_add_signal(
-        loop: *EventLoop,
-        signal_number: c_int,
-        func: *const fn (c_int, ?*anyopaque) callconv(.c) c_int,
-        data: ?*anyopaque,
-    ) ?*EventSource;
     pub inline fn addSignal(
         loop: *EventLoop,
         comptime T: type,
@@ -539,7 +526,7 @@ pub const EventLoop = opaque {
         comptime func: fn (signal_number: c_int, data: T) c_int,
         data: T,
     ) error{AddSignalFailed}!*EventSource {
-        return wl_event_loop_add_signal(
+        return ffi.server.wl_event_loop_add_signal(
             loop,
             signal_number,
             struct {
@@ -551,18 +538,13 @@ pub const EventLoop = opaque {
         ) orelse error.AddSignalFailed;
     }
 
-    extern fn wl_event_loop_add_idle(
-        loop: *EventLoop,
-        func: *const fn (data: ?*anyopaque) callconv(.c) void,
-        data: ?*anyopaque,
-    ) ?*EventSource;
     pub inline fn addIdle(
         loop: *EventLoop,
         comptime T: type,
         comptime func: fn (data: T) void,
         data: T,
     ) error{OutOfMemory}!*EventSource {
-        return wl_event_loop_add_idle(
+        return ffi.server.wl_event_loop_add_idle(
             loop,
             struct {
                 fn _wrapper(_data: ?*anyopaque) callconv(.c) void {
@@ -573,9 +555,8 @@ pub const EventLoop = opaque {
         ) orelse error.OutOfMemory;
     }
 
-    extern fn wl_event_loop_dispatch(loop: *EventLoop, timeout: c_int) c_int;
-    pub fn dispatch(loop: *EventLoop, timeout: c_int) !void {
-        const rc = wl_event_loop_dispatch(loop, timeout);
+    pub inline fn dispatch(loop: *EventLoop, timeout: c_int) posix.UnexpectedError!void {
+        const rc = ffi.server.wl_event_loop_dispatch(loop, timeout);
         switch (posix.errno(rc)) {
             .SUCCESS => return,
             // TODO
@@ -583,31 +564,33 @@ pub const EventLoop = opaque {
         }
     }
 
-    extern fn wl_event_loop_dispatch_idle(loop: *EventLoop) void;
-    pub const dispatchIdle = wl_event_loop_dispatch_idle;
+    pub inline fn dispatchIdle(loop: *EventLoop) void {
+        ffi.server.wl_event_loop_dispatch_idle(loop);
+    }
 
-    extern fn wl_event_loop_get_fd(loop: *EventLoop) c_int;
-    pub const getFd = wl_event_loop_get_fd;
+    pub inline fn getFd(loop: *EventLoop) c_int {
+        return ffi.server.wl_event_loop_get_fd(loop);
+    }
 
-    extern fn wl_event_loop_add_destroy_listener(loop: *EventLoop, listener: *Listener(*EventLoop)) void;
-    pub const addDestroyListener = wl_event_loop_add_destroy_listener;
+    pub inline fn addDestroyListener(loop: *EventLoop, listener: *Listener(*EventLoop)) void {
+        ffi.server.wl_event_loop_add_destroy_listener(loop, listener);
+    }
 
-    //extern fn wl_event_loop_get_destroy_listener(loop: *EventLoop, notify: @TypeOf(Listener(*EventLoop).notify)) ?*Listener;
+    //fn wl_event_loop_get_destroy_listener(loop: *EventLoop, notify: @TypeOf(Listener(*EventLoop).notify)) ?*Listener;
     //pub const getDestroyListener = wl_event_loop_get_destroy_listener;
 };
 
 pub const EventSource = opaque {
-    extern fn wl_event_source_remove(source: *EventSource) c_int;
-    pub fn remove(source: *EventSource) void {
-        if (wl_event_source_remove(source) != 0) unreachable;
+    pub inline fn remove(source: *EventSource) void {
+        if (ffi.server.wl_event_source_remove(source) != 0) unreachable;
     }
 
-    extern fn wl_event_source_check(source: *EventSource) void;
-    pub const check = wl_event_source_check;
+    pub inline fn check(source: *EventSource) void {
+        ffi.server.wl_event_source_check(source);
+    }
 
-    extern fn wl_event_source_fd_update(source: *EventSource, mask: u32) c_int;
-    pub fn fdUpdate(source: *EventSource, mask: EventMask) !void {
-        const rc = wl_event_source_fd_update(source, @bitCast(mask));
+    pub inline fn fdUpdate(source: *EventSource, mask: EventMask) posix.UnexpectedError!void {
+        const rc = ffi.server.wl_event_source_fd_update(source, @bitCast(mask));
         switch (posix.errno(rc)) {
             .SUCCESS => return,
             // TODO
@@ -615,9 +598,8 @@ pub const EventSource = opaque {
         }
     }
 
-    extern fn wl_event_source_timer_update(source: *EventSource, ms_delay: c_int) c_int;
-    pub fn timerUpdate(source: *EventSource, ms_delay: c_int) !void {
-        const rc = wl_event_source_timer_update(source, ms_delay);
+    pub inline fn timerUpdate(source: *EventSource, ms_delay: c_int) posix.UnexpectedError!void {
+        const rc = ffi.server.wl_event_source_timer_update(source, ms_delay);
         switch (posix.errno(rc)) {
             .SUCCESS => return,
             // TODO
@@ -628,36 +610,46 @@ pub const EventSource = opaque {
 
 pub const shm = struct {
     pub const Buffer = opaque {
-        extern fn wl_shm_buffer_get(resource: *Resource) ?*shm.Buffer;
-        pub const get = wl_shm_buffer_get;
+        pub inline fn get(resource: *Resource) ?*shm.Buffer {
+            return ffi.server.wl_shm_buffer_get(resource);
+        }
 
-        extern fn wl_shm_buffer_begin_access(buffer: *shm.Buffer) void;
-        pub const beginAccess = wl_shm_buffer_begin_access;
+        pub inline fn beginAccess(buffer: *shm.Buffer) void {
+            ffi.server.wl_shm_buffer_begin_access(buffer);
+        }
 
-        extern fn wl_shm_buffer_end_access(buffer: *shm.Buffer) void;
-        pub const endAccess = wl_shm_buffer_end_access;
+        pub inline fn endAccess(buffer: *shm.Buffer) void {
+            ffi.server.wl_shm_buffer_end_access(buffer);
+        }
 
-        extern fn wl_shm_buffer_get_data(buffer: *shm.Buffer) ?*anyopaque;
-        pub const getData = wl_shm_buffer_get_data;
+        pub inline fn getData(buffer: *shm.Buffer) ?*anyopaque {
+            return ffi.server.wl_shm_buffer_get_data(buffer);
+        }
 
-        extern fn wl_shm_buffer_get_format(buffer: *shm.Buffer) u32;
-        pub const getFormat = wl_shm_buffer_get_format;
+        pub inline fn getFormat(buffer: *shm.Buffer) u32 {
+            return ffi.server.wl_shm_buffer_get_format(buffer);
+        }
 
-        extern fn wl_shm_buffer_get_height(buffer: *shm.Buffer) i32;
-        pub const getHeight = wl_shm_buffer_get_height;
+        pub inline fn getHeight(buffer: *shm.Buffer) i32 {
+            return ffi.server.wl_shm_buffer_get_height(buffer);
+        }
 
-        extern fn wl_shm_buffer_get_width(buffer: *shm.Buffer) i32;
-        pub const getWidth = wl_shm_buffer_get_width;
+        pub inline fn getWidth(buffer: *shm.Buffer) i32 {
+            return ffi.server.wl_shm_buffer_get_width(buffer);
+        }
 
-        extern fn wl_shm_buffer_get_stride(buffer: *shm.Buffer) i32;
-        pub const getStride = wl_shm_buffer_get_stride;
+        pub inline fn getStride(buffer: *shm.Buffer) i32 {
+            return ffi.server.wl_shm_buffer_get_stride(buffer);
+        }
 
-        extern fn wl_shm_buffer_ref_pool(buffer: *shm.Buffer) *Pool;
-        pub const refPool = wl_shm_buffer_ref_pool;
+        pub inline fn refPool(buffer: *shm.Buffer) *Pool {
+            return ffi.server.wl_shm_buffer_ref_pool(buffer);
+        }
     };
 
     pub const Pool = opaque {
-        extern fn wl_shm_pool_unref(pool: *Pool) void;
-        pub const unref = wl_shm_pool_unref;
+        pub inline fn unref(pool: *Pool) void {
+            ffi.server.wl_shm_pool_unref(pool);
+        }
     };
 };

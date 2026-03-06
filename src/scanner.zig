@@ -34,6 +34,7 @@ pub fn main() !void {
     var targets: std.ArrayList(Target) = .empty;
     defer targets.deinit(gpa);
 
+    var ffi_import: ?[]const u8 = null;
     var out_path_opt: ?[]const u8 = null;
 
     var args = std.process.args();
@@ -51,6 +52,8 @@ pub fn main() !void {
             });
         } else if (mem.eql(u8, arg, "-o")) {
             out_path_opt = args.next() orelse return error.MissingArg;
+        } else if (mem.eql(u8, arg, "-f")) {
+            ffi_import = args.next() orelse return error.MissingArg;
         }
     }
 
@@ -58,7 +61,7 @@ pub fn main() !void {
 
     var buffer: io.Writer.Allocating = .init(gpa);
 
-    try scan(&buffer.writer, protocols.items, targets.items);
+    try scan(&buffer.writer, protocols.items, targets.items, ffi_import);
 
     const generated = try buffer.toOwnedSliceSentinel(0);
     defer gpa.free(generated);
@@ -86,6 +89,7 @@ fn scan(
     writer: *io.Writer,
     protocols: []const []const u8,
     targets: []const Target,
+    ffi_import: ?[]const u8,
 ) !void {
     var scanner = try Scanner.init(targets);
     defer scanner.deinit();
@@ -106,6 +110,7 @@ fn scan(
         \\const std = @import("std");
         \\const assert = std.debug.assert;
         \\const posix = std.posix;
+        \\const wayland = @This();
         \\
         \\pub const client = struct {
     );
@@ -157,6 +162,14 @@ fn scan(
         }
     }
     try writer.writeAll("};");
+
+    if (ffi_import) |import| {
+        try writer.print("const ffi = @import(\"{s}\");", .{import});
+    } else {
+        try writer.writeAll("const ffi = struct {");
+        try writer.writeAll(@embedFile("ffi.zig"));
+        try writer.writeAll("};");
+    }
 }
 
 const Side = enum {
@@ -599,7 +612,7 @@ const Interface = struct {
                 .{ .name = "getUserData", .return_type = "?*anyopaque" },
             }) |func| {
                 try writer.print(
-                    \\pub fn {[function]s}(_{[interface]f}: *{[type]f}) {[return_type]s} {{
+                    \\pub inline fn {[function]s}(_{[interface]f}: *{[type]f}) {[return_type]s} {{
                     \\    return @as(*client.wl.Proxy, @ptrCast(_{[interface]f})).{[function]s}();
                     \\}}
                 , .{
@@ -611,7 +624,7 @@ const Interface = struct {
             }
 
             try writer.print(
-                \\pub fn setQueue(_{[interface]f}: *{[type]f}, _queue: *client.wl.EventQueue) void {{
+                \\pub inline fn setQueue(_{[interface]f}: *{[type]f}, _queue: *client.wl.EventQueue) void {{
                 \\    const _proxy: *client.wl.Proxy = @ptrCast(_{[interface]f});
                 \\    _proxy.setQueue(_queue);
                 \\}}
@@ -669,7 +682,7 @@ const Interface = struct {
                 try writer.writeAll(@embedFile("client_display_functions.zig"));
             } else if (!has_destroy) {
                 try writer.print(
-                    \\pub fn destroy(_{[interface]f}: *{[type]f}) void {{
+                    \\pub inline fn destroy(_{[interface]f}: *{[type]f}) void {{
                     \\    const _proxy: *client.wl.Proxy = @ptrCast(_{[interface]f});
                     \\    _proxy.destroy();
                     \\}}
@@ -681,11 +694,11 @@ const Interface = struct {
             // side == .server
         } else {
             try writer.print(
-                \\pub fn create(_client: *server.wl.Client, _version: u32, _id: u32) !*{[type]f} {{
+                \\pub inline fn create(_client: *server.wl.Client, _version: u32, _id: u32) error{{ResourceCreateFailed}}!*{[type]f} {{
                 \\    return @ptrCast(try server.wl.Resource.create(_client, {[type]f}, _version, _id));
-                \\}}pub fn destroy(_{[interface]f}: *{[type]f}) void {{
+                \\}}pub inline fn destroy(_{[interface]f}: *{[type]f}) void {{
                 \\    return @as(*server.wl.Resource, @ptrCast(_{[interface]f})).destroy();
-                \\}}pub fn fromLink(_link: *server.wl.list.Link) *{[type]f} {{
+                \\}}pub inline fn fromLink(_link: *server.wl.list.Link) *{[type]f} {{
                 \\    return @ptrCast(server.wl.Resource.fromLink(_link));
                 \\}}
             , .{
@@ -702,7 +715,7 @@ const Interface = struct {
                 .{ .name = "getUserData", .return_type = "?*anyopaque" },
             }) |func|
                 try writer.print(
-                    \\pub fn {[function]s}(_{[interface]f}: *{[type]f}) {[return_type]s} {{
+                    \\pub inline fn {[function]s}(_{[interface]f}: *{[type]f}) {[return_type]s} {{
                     \\    return @as(*server.wl.Resource, @ptrCast(_{[interface]f})).{[function]s}();
                     \\}}
                 , .{
@@ -719,7 +732,7 @@ const Interface = struct {
             } else false;
             if (has_error) {
                 try writer.print(
-                    \\pub fn postError(_{[interface]f}: *{[type]f}, _err: Error, _message: [*:0]const u8) void {{
+                    \\pub inline fn postError(_{[interface]f}: *{[type]f}, _err: Error, _message: [*:0]const u8) void {{
                     \\    return @as(*server.wl.Resource, @ptrCast(_{[interface]f})).postError(@intCast(@intFromEnum(_err)), _message);
                     \\}}
                 , .{

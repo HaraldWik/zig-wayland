@@ -3,6 +3,7 @@
 const std = @import("std");
 const assert = std.debug.assert;
 const posix = std.posix;
+const wayland = @This();
 
 pub const client = struct {
     pub const wl = struct {
@@ -15,124 +16,114 @@ pub const client = struct {
         pub const Argument = common.Argument;
 
         pub const Proxy = opaque {
-            extern fn wl_proxy_create(factory: *Proxy, interface: *const Interface) ?*Proxy;
-            pub fn create(factory: *Proxy, interface: *const Interface) error{OutOfMemory}!*Proxy {
-                return wl_proxy_create(factory, interface) orelse error.OutOfMemory;
+            pub inline fn create(factory: *Proxy, interface: *const Interface) error{OutOfMemory}!*Proxy {
+                return ffi.client.wl_proxy_create(factory, interface) orelse error.OutOfMemory;
             }
 
-            extern fn wl_proxy_destroy(proxy: *Proxy) void;
-            pub const destroy = wl_proxy_destroy;
+            pub inline fn destroy(proxy: *Proxy) void {
+                ffi.client.wl_proxy_destroy(proxy);
+            }
 
-            extern fn wl_proxy_marshal_array(proxy: *Proxy, opcode: u32, args: ?[*]Argument) void;
-            pub const marshal = wl_proxy_marshal_array;
+            pub inline fn marshal(proxy: *Proxy, opcode: u32, args: ?[*]Argument) void {
+                ffi.client.wl_proxy_marshal_array(proxy, opcode, args);
+            }
 
-            extern fn wl_proxy_marshal_array_constructor(
-                proxy: *Proxy,
-                opcode: u32,
-                args: [*]Argument,
-                interface: *const Interface,
-            ) ?*Proxy;
-            pub fn marshalConstructor(
+            pub inline fn marshalConstructor(
                 proxy: *Proxy,
                 opcode: u32,
                 args: [*]Argument,
                 interface: *const Interface,
             ) error{OutOfMemory}!*Proxy {
-                return wl_proxy_marshal_array_constructor(proxy, opcode, args, interface) orelse
+                return ffi.client.wl_proxy_marshal_array_constructor(proxy, opcode, args, interface) orelse
                     error.OutOfMemory;
             }
 
-            extern fn wl_proxy_marshal_array_constructor_versioned(
-                proxy: *Proxy,
-                opcode: u32,
-                args: [*]Argument,
-                interface: *const Interface,
-                version: u32,
-            ) ?*Proxy;
-            pub fn marshalConstructorVersioned(
+            pub inline fn marshalConstructorVersioned(
                 proxy: *Proxy,
                 opcode: u32,
                 args: [*]Argument,
                 interface: *const Interface,
                 version: u32,
             ) error{OutOfMemory}!*Proxy {
-                return wl_proxy_marshal_array_constructor_versioned(proxy, opcode, args, interface, version) orelse
+                return ffi.client.wl_proxy_marshal_array_constructor_versioned(proxy, opcode, args, interface, version) orelse
                     error.OutOfMemory;
             }
 
-            const DispatcherFn = fn (
+            pub const DispatcherFn = fn (
                 implementation: ?*const anyopaque,
                 proxy: *Proxy,
                 opcode: u32,
                 message: *const Message,
                 args: [*]Argument,
             ) callconv(.c) c_int;
-            extern fn wl_proxy_add_dispatcher(
-                proxy: *Proxy,
-                dispatcher: *const DispatcherFn,
-                implementation: ?*const anyopaque,
-                data: ?*anyopaque,
-            ) c_int;
-            pub fn addDispatcher(
+            pub inline fn addDispatcher(
                 proxy: *Proxy,
                 dispatcher: *const DispatcherFn,
                 implementation: ?*const anyopaque,
                 data: ?*anyopaque,
             ) void {
-                const ret = wl_proxy_add_dispatcher(proxy, dispatcher, implementation, data);
+                const ret = ffi.client.wl_proxy_add_dispatcher(proxy, dispatcher, implementation, data);
                 // Since there is no way to remove listeners, adding a listener to
                 // the same proxy twice is always a bug, so assert instead of returning
                 // an error.
                 assert(ret != -1); // If this fails, a listener was already added
             }
 
-            extern fn wl_proxy_get_user_data(proxy: *Proxy) ?*anyopaque;
-            pub const getUserData = wl_proxy_get_user_data;
+            pub inline fn getUserData(proxy: *Proxy) ?*anyopaque {
+                return ffi.client.wl_proxy_get_user_data(proxy);
+            }
 
-            extern fn wl_proxy_get_version(proxy: *Proxy) u32;
-            pub const getVersion = wl_proxy_get_version;
+            pub inline fn getVersion(proxy: *Proxy) u32 {
+                return ffi.client.wl_proxy_get_version(proxy);
+            }
 
-            extern fn wl_proxy_get_id(proxy: *Proxy) u32;
-            pub const getId = wl_proxy_get_id;
+            pub inline fn getId(proxy: *Proxy) u32 {
+                return ffi.client.wl_proxy_get_id(proxy);
+            }
 
-            extern fn wl_proxy_set_queue(proxy: *Proxy, queue: *EventQueue) void;
-            pub const setQueue = wl_proxy_set_queue;
+            pub inline fn setQueue(proxy: *Proxy, queue: *EventQueue) void {
+                ffi.client.wl_proxy_set_queue(proxy, queue);
+            }
         };
 
         pub const EventQueue = opaque {
-            extern fn wl_event_queue_destroy(queue: *EventQueue) void;
-            pub const destroy = wl_event_queue_destroy;
+            pub inline fn destroy(queue: *EventQueue) void {
+                ffi.client.wl_event_queue_destroy(queue);
+            }
         };
 
         pub const EglWindow = opaque {
-            extern fn wl_egl_window_create(surface: *client.wl.Surface, width: c_int, height: c_int) ?*EglWindow;
-            pub fn create(surface: *client.wl.Surface, width: c_int, height: c_int) !*EglWindow {
+            pub inline fn create(surface: *client.wl.Surface, width: c_int, height: c_int) error{OutOfMemory}!*EglWindow {
                 // Why do people use int when they require a positive number?
                 assert(width > 0 and height > 0);
-                return wl_egl_window_create(surface, width, height) orelse error.OutOfMemory;
+                return ffi.egl.wl_egl_window_create(surface, width, height) orelse error.OutOfMemory;
             }
 
-            extern fn wl_egl_window_destroy(egl_window: *EglWindow) void;
-            pub const destroy = wl_egl_window_destroy;
+            pub inline fn destroy(egl_window: *EglWindow) void {
+                ffi.egl.wl_egl_window_destroy(egl_window);
+            }
 
-            extern fn wl_egl_window_resize(egl_window: *EglWindow, width: c_int, height: c_int, dx: c_int, dy: c_int) void;
-            pub const resize = wl_egl_window_resize;
+            pub inline fn resize(egl_window: *EglWindow, width: c_int, height: c_int, dx: c_int, dy: c_int) void {
+                ffi.egl.wl_egl_window_resize(egl_window, width, height, dx, dy);
+            }
 
-            extern fn wl_egl_window_get_attached_size(egl_window: *EglWindow, width: *c_int, height: *c_int) void;
-            pub const getAttachedSize = wl_egl_window_get_attached_size;
+            pub inline fn getAttachedSize(egl_window: *EglWindow, width: *c_int, height: *c_int) void {
+                ffi.egl.wl_egl_window_get_attached_size(egl_window, width, height);
+            }
         };
 
         pub const CursorTheme = opaque {
-            extern fn wl_cursor_theme_load(name: ?[*:0]const u8, size: c_int, shm: *client.wl.Shm) ?*CursorTheme;
-            pub fn load(name: ?[*:0]const u8, size: i32, shm: *client.wl.Shm) error{LoadThemeFailed}!*CursorTheme {
-                return wl_cursor_theme_load(name, @intCast(size), shm) orelse error.LoadThemeFailed;
+            pub inline fn load(name: ?[*:0]const u8, size: i32, shm: *client.wl.Shm) error{LoadThemeFailed}!*CursorTheme {
+                return ffi.cursor.wl_cursor_theme_load(name, @intCast(size), shm) orelse error.LoadThemeFailed;
             }
 
-            extern fn wl_cursor_theme_destroy(wl_cursor_theme: *CursorTheme) void;
-            pub const destroy = wl_cursor_theme_destroy;
+            pub inline fn destroy(wl_cursor_theme: *CursorTheme) void {
+                ffi.cursor.wl_cursor_theme_destroy(wl_cursor_theme);
+            }
 
-            extern fn wl_cursor_theme_get_cursor(theme: *CursorTheme, name: [*:0]const u8) ?*Cursor;
-            pub const getCursor = wl_cursor_theme_get_cursor;
+            pub inline fn getCursor(theme: *CursorTheme, name: [*:0]const u8) ?*Cursor {
+                return ffi.cursor.wl_cursor_theme_get_cursor(theme, name);
+            }
         };
 
         pub const Cursor = extern struct {
@@ -140,11 +131,13 @@ pub const client = struct {
             images: [*]*CursorImage,
             name: [*:0]u8,
 
-            extern fn wl_cursor_frame(cursor: *Cursor, time: u32) c_int;
-            pub const frame = wl_cursor_frame;
+            pub inline fn frame(cursor: *Cursor, time: u32) c_int {
+                return ffi.cursor.wl_cursor_frame(cursor, time);
+            }
 
-            extern fn wl_cursor_frame_and_duration(cursor: *Cursor, time: u32, duration: *u32) c_int;
-            pub const frameAndDuration = wl_cursor_frame_and_duration;
+            pub inline fn frameAndDuration(cursor: *Cursor, time: u32, duration: *u32) c_int {
+                return ffi.cursor.wl_cursor_frame_and_duration(cursor, time, duration);
+            }
         };
 
         pub const CursorImage = extern struct {
@@ -154,9 +147,8 @@ pub const client = struct {
             hotspot_y: u32,
             delay: u32,
 
-            extern fn wl_cursor_image_get_buffer(image: *CursorImage) ?*client.wl.Buffer;
-            pub fn getBuffer(image: *CursorImage) error{OutOfMemory}!*client.wl.Buffer {
-                return wl_cursor_image_get_buffer(image) orelse error.OutOfMemory;
+            pub inline fn getBuffer(image: *CursorImage) error{OutOfMemory}!*client.wl.Buffer {
+                return ffi.cursor.wl_cursor_image_get_buffer(image) orelse error.OutOfMemory;
             }
         };
 
@@ -166,16 +158,16 @@ pub const client = struct {
             pub const generated_version = 1;
             pub const interface = &common.wl.display.interface;
             pub const Error = common.wl.display.Error;
-            pub fn getId(_display: *Display) u32 {
+            pub inline fn getId(_display: *Display) u32 {
                 return @as(*client.wl.Proxy, @ptrCast(_display)).getId();
             }
-            pub fn getVersion(_display: *Display) u32 {
+            pub inline fn getVersion(_display: *Display) u32 {
                 return @as(*client.wl.Proxy, @ptrCast(_display)).getVersion();
             }
-            pub fn getUserData(_display: *Display) ?*anyopaque {
+            pub inline fn getUserData(_display: *Display) ?*anyopaque {
                 return @as(*client.wl.Proxy, @ptrCast(_display)).getUserData();
             }
-            pub fn setQueue(_display: *Display, _queue: *client.wl.EventQueue) void {
+            pub inline fn setQueue(_display: *Display, _queue: *client.wl.EventQueue) void {
                 const _proxy: *client.wl.Proxy = @ptrCast(_display);
                 _proxy.setQueue(_queue);
             }
@@ -252,93 +244,84 @@ pub const client = struct {
                 return @ptrCast(try _proxy.marshalConstructor(1, &_args, client.wl.Registry.interface));
             }
             pub const get_registry_since_version = 1;
-            extern fn wl_display_connect(name: ?[*:0]const u8) ?*Display;
             pub inline fn connect(name: ?[*:0]const u8) error{ConnectFailed}!*Display {
-                return wl_display_connect(name) orelse return error.ConnectFailed;
+                return ffi.client.wl_display_connect(name) orelse return error.ConnectFailed;
             }
 
-            extern fn wl_display_connect_to_fd(fd: c_int) ?*Display;
             pub inline fn connectToFd(fd: c_int) error{ConnectFailed}!*Display {
-                return wl_display_connect_to_fd(fd) orelse return error.ConnectFailed;
+                return ffi.client.wl_display_connect_to_fd(fd) orelse return error.ConnectFailed;
             }
 
-            extern fn wl_display_disconnect(display: *Display) void;
-            pub const disconnect = wl_display_disconnect;
+            pub inline fn disconnect(display: *Display) void {
+                ffi.client.wl_display_disconnect(display);
+            }
 
-            extern fn wl_display_get_fd(display: *Display) c_int;
-            pub const getFd = wl_display_get_fd;
+            pub inline fn getFd(display: *Display) c_int {
+                return ffi.client.wl_display_get_fd(display);
+            }
 
-            extern fn wl_display_dispatch(display: *Display) c_int;
             pub inline fn dispatch(display: *Display) posix.E {
-                return posix.errno(wl_display_dispatch(display));
+                return posix.errno(ffi.client.wl_display_dispatch(display));
             }
 
-            extern fn wl_display_dispatch_queue(display: *Display, queue: *client.wl.EventQueue) c_int;
             pub inline fn dispatchQueue(display: *Display, queue: *client.wl.EventQueue) posix.E {
-                return posix.errno(wl_display_dispatch_queue(display, queue));
+                return posix.errno(ffi.client.wl_display_dispatch_queue(display, queue));
             }
 
-            extern fn wl_display_dispatch_pending(display: *Display) c_int;
             pub inline fn dispatchPending(display: *Display) posix.E {
-                return posix.errno(wl_display_dispatch_pending(display));
+                return posix.errno(ffi.client.wl_display_dispatch_pending(display));
             }
 
-            extern fn wl_display_dispatch_queue_pending(display: *Display, queue: *client.wl.EventQueue) c_int;
             pub inline fn dispatchQueuePending(display: *Display, queue: *client.wl.EventQueue) posix.E {
-                return posix.errno(wl_display_dispatch_queue_pending(display, queue));
+                return posix.errno(ffi.client.wl_display_dispatch_queue_pending(display, queue));
             }
 
-            extern fn wl_display_roundtrip(display: *Display) c_int;
             pub inline fn roundtrip(display: *Display) posix.E {
-                return posix.errno(wl_display_roundtrip(display));
+                return posix.errno(ffi.client.wl_display_roundtrip(display));
             }
 
-            extern fn wl_display_roundtrip_queue(display: *Display, queue: *client.wl.EventQueue) c_int;
             pub inline fn roundtripQueue(display: *Display, queue: *client.wl.EventQueue) posix.E {
-                return posix.errno(wl_display_roundtrip_queue(display, queue));
+                return posix.errno(ffi.client.wl_display_roundtrip_queue(display, queue));
             }
 
-            extern fn wl_display_flush(display: *Display) c_int;
             pub inline fn flush(display: *Display) posix.E {
-                return posix.errno(wl_display_flush(display));
+                return posix.errno(ffi.client.wl_display_flush(display));
             }
 
-            extern fn wl_display_create_queue(display: *Display) ?*client.wl.EventQueue;
             pub inline fn createQueue(display: *Display) error{OutOfMemory}!*client.wl.EventQueue {
-                return wl_display_create_queue(display) orelse error.OutOfMemory;
+                return ffi.client.wl_display_create_queue(display) orelse error.OutOfMemory;
             }
 
-            extern fn wl_display_get_error(display: *Display) c_int;
-            pub const getError = wl_display_get_error;
+            pub inline fn getError(display: *Display) c_int {
+                return ffi.client.wl_display_get_error(display);
+            }
 
-            extern fn wl_display_prepare_read_queue(display: *Display, queue: *client.wl.EventQueue) c_int;
             /// Succeeds if the queue is empty and returns true.
             /// Fails and returns false if the queue was not empty.
             pub inline fn prepareReadQueue(display: *Display, queue: *client.wl.EventQueue) bool {
-                switch (wl_display_prepare_read_queue(display, queue)) {
+                switch (ffi.client.wl_display_prepare_read_queue(display, queue)) {
                     0 => return true,
                     -1 => return false,
                     else => unreachable,
                 }
             }
 
-            extern fn wl_display_prepare_read(display: *Display) c_int;
             /// Succeeds if the queue is empty and returns true.
             /// Fails and returns false if the queue was not empty.
             pub inline fn prepareRead(display: *Display) bool {
-                switch (wl_display_prepare_read(display)) {
+                switch (ffi.client.wl_display_prepare_read(display)) {
                     0 => return true,
                     -1 => return false,
                     else => unreachable,
                 }
             }
 
-            extern fn wl_display_cancel_read(display: *Display) void;
-            pub const cancelRead = wl_display_cancel_read;
+            pub inline fn cancelRead(display: *Display) void {
+                ffi.client.wl_display_cancel_read(display);
+            }
 
-            extern fn wl_display_read_events(display: *Display) c_int;
             pub inline fn readEvents(display: *Display) posix.E {
-                return posix.errno(wl_display_read_events(display));
+                return posix.errno(ffi.client.wl_display_read_events(display));
             }
         };
 
@@ -365,16 +348,16 @@ pub const client = struct {
         pub const Registry = opaque {
             pub const generated_version = 1;
             pub const interface = &common.wl.registry.interface;
-            pub fn getId(_registry: *Registry) u32 {
+            pub inline fn getId(_registry: *Registry) u32 {
                 return @as(*client.wl.Proxy, @ptrCast(_registry)).getId();
             }
-            pub fn getVersion(_registry: *Registry) u32 {
+            pub inline fn getVersion(_registry: *Registry) u32 {
                 return @as(*client.wl.Proxy, @ptrCast(_registry)).getVersion();
             }
-            pub fn getUserData(_registry: *Registry) ?*anyopaque {
+            pub inline fn getUserData(_registry: *Registry) ?*anyopaque {
                 return @as(*client.wl.Proxy, @ptrCast(_registry)).getUserData();
             }
-            pub fn setQueue(_registry: *Registry, _queue: *client.wl.EventQueue) void {
+            pub inline fn setQueue(_registry: *Registry, _queue: *client.wl.EventQueue) void {
                 const _proxy: *client.wl.Proxy = @ptrCast(_registry);
                 _proxy.setQueue(_queue);
             }
@@ -431,7 +414,7 @@ pub const client = struct {
                 return @ptrCast(try _proxy.marshalConstructorVersioned(0, &_args, T.interface, version_to_construct));
             }
             pub const bind_since_version = 1;
-            pub fn destroy(_registry: *Registry) void {
+            pub inline fn destroy(_registry: *Registry) void {
                 const _proxy: *client.wl.Proxy = @ptrCast(_registry);
                 _proxy.destroy();
             }
@@ -445,16 +428,16 @@ pub const client = struct {
         pub const Callback = opaque {
             pub const generated_version = 1;
             pub const interface = &common.wl.callback.interface;
-            pub fn getId(_callback: *Callback) u32 {
+            pub inline fn getId(_callback: *Callback) u32 {
                 return @as(*client.wl.Proxy, @ptrCast(_callback)).getId();
             }
-            pub fn getVersion(_callback: *Callback) u32 {
+            pub inline fn getVersion(_callback: *Callback) u32 {
                 return @as(*client.wl.Proxy, @ptrCast(_callback)).getVersion();
             }
-            pub fn getUserData(_callback: *Callback) ?*anyopaque {
+            pub inline fn getUserData(_callback: *Callback) ?*anyopaque {
                 return @as(*client.wl.Proxy, @ptrCast(_callback)).getUserData();
             }
-            pub fn setQueue(_callback: *Callback, _queue: *client.wl.EventQueue) void {
+            pub inline fn setQueue(_callback: *Callback, _queue: *client.wl.EventQueue) void {
                 const _proxy: *client.wl.Proxy = @ptrCast(_callback);
                 _proxy.setQueue(_queue);
             }
@@ -476,7 +459,7 @@ pub const client = struct {
                 const _mut_data: ?*anyopaque = @ptrFromInt(@intFromPtr(_data));
                 _proxy.addDispatcher(common.Dispatcher(Callback, T).dispatcher, _listener, _mut_data);
             }
-            pub fn destroy(_callback: *Callback) void {
+            pub inline fn destroy(_callback: *Callback) void {
                 const _proxy: *client.wl.Proxy = @ptrCast(_callback);
                 _proxy.destroy();
             }
@@ -500,16 +483,16 @@ pub const client = struct {
         pub const Buffer = opaque {
             pub const generated_version = 1;
             pub const interface = &common.wl.buffer.interface;
-            pub fn getId(_buffer: *Buffer) u32 {
+            pub inline fn getId(_buffer: *Buffer) u32 {
                 return @as(*client.wl.Proxy, @ptrCast(_buffer)).getId();
             }
-            pub fn getVersion(_buffer: *Buffer) u32 {
+            pub inline fn getVersion(_buffer: *Buffer) u32 {
                 return @as(*client.wl.Proxy, @ptrCast(_buffer)).getVersion();
             }
-            pub fn getUserData(_buffer: *Buffer) ?*anyopaque {
+            pub inline fn getUserData(_buffer: *Buffer) ?*anyopaque {
                 return @as(*client.wl.Proxy, @ptrCast(_buffer)).getUserData();
             }
-            pub fn setQueue(_buffer: *Buffer, _queue: *client.wl.EventQueue) void {
+            pub inline fn setQueue(_buffer: *Buffer, _queue: *client.wl.EventQueue) void {
                 const _proxy: *client.wl.Proxy = @ptrCast(_buffer);
                 _proxy.setQueue(_queue);
             }
@@ -560,16 +543,16 @@ pub const client = struct {
         pub const Compositor = opaque {
             pub const generated_version = 5;
             pub const interface = &common.wl.compositor.interface;
-            pub fn getId(_compositor: *Compositor) u32 {
+            pub inline fn getId(_compositor: *Compositor) u32 {
                 return @as(*client.wl.Proxy, @ptrCast(_compositor)).getId();
             }
-            pub fn getVersion(_compositor: *Compositor) u32 {
+            pub inline fn getVersion(_compositor: *Compositor) u32 {
                 return @as(*client.wl.Proxy, @ptrCast(_compositor)).getVersion();
             }
-            pub fn getUserData(_compositor: *Compositor) ?*anyopaque {
+            pub inline fn getUserData(_compositor: *Compositor) ?*anyopaque {
                 return @as(*client.wl.Proxy, @ptrCast(_compositor)).getUserData();
             }
-            pub fn setQueue(_compositor: *Compositor, _queue: *client.wl.EventQueue) void {
+            pub inline fn setQueue(_compositor: *Compositor, _queue: *client.wl.EventQueue) void {
                 const _proxy: *client.wl.Proxy = @ptrCast(_compositor);
                 _proxy.setQueue(_queue);
             }
@@ -592,7 +575,7 @@ pub const client = struct {
                 return @ptrCast(try _proxy.marshalConstructor(1, &_args, client.wl.Region.interface));
             }
             pub const create_region_since_version = 1;
-            pub fn destroy(_compositor: *Compositor) void {
+            pub inline fn destroy(_compositor: *Compositor) void {
                 const _proxy: *client.wl.Proxy = @ptrCast(_compositor);
                 _proxy.destroy();
             }
@@ -644,16 +627,16 @@ pub const client = struct {
             pub const generated_version = 5;
             pub const interface = &common.wl.surface.interface;
             pub const Error = common.wl.surface.Error;
-            pub fn getId(_surface: *Surface) u32 {
+            pub inline fn getId(_surface: *Surface) u32 {
                 return @as(*client.wl.Proxy, @ptrCast(_surface)).getId();
             }
-            pub fn getVersion(_surface: *Surface) u32 {
+            pub inline fn getVersion(_surface: *Surface) u32 {
                 return @as(*client.wl.Proxy, @ptrCast(_surface)).getVersion();
             }
-            pub fn getUserData(_surface: *Surface) ?*anyopaque {
+            pub inline fn getUserData(_surface: *Surface) ?*anyopaque {
                 return @as(*client.wl.Proxy, @ptrCast(_surface)).getUserData();
             }
-            pub fn setQueue(_surface: *Surface, _queue: *client.wl.EventQueue) void {
+            pub inline fn setQueue(_surface: *Surface, _queue: *client.wl.EventQueue) void {
                 const _proxy: *client.wl.Proxy = @ptrCast(_surface);
                 _proxy.setQueue(_queue);
             }
@@ -1093,16 +1076,16 @@ pub const client = struct {
         pub const Region = opaque {
             pub const generated_version = 1;
             pub const interface = &common.wl.region.interface;
-            pub fn getId(_region: *Region) u32 {
+            pub inline fn getId(_region: *Region) u32 {
                 return @as(*client.wl.Proxy, @ptrCast(_region)).getId();
             }
-            pub fn getVersion(_region: *Region) u32 {
+            pub inline fn getVersion(_region: *Region) u32 {
                 return @as(*client.wl.Proxy, @ptrCast(_region)).getVersion();
             }
-            pub fn getUserData(_region: *Region) ?*anyopaque {
+            pub inline fn getUserData(_region: *Region) ?*anyopaque {
                 return @as(*client.wl.Proxy, @ptrCast(_region)).getUserData();
             }
-            pub fn setQueue(_region: *Region, _queue: *client.wl.EventQueue) void {
+            pub inline fn setQueue(_region: *Region, _queue: *client.wl.EventQueue) void {
                 const _proxy: *client.wl.Proxy = @ptrCast(_region);
                 _proxy.setQueue(_queue);
             }
@@ -1155,16 +1138,16 @@ pub const client = struct {
             pub const interface = &common.wl.shm.interface;
             pub const Error = common.wl.shm.Error;
             pub const Format = common.wl.shm.Format;
-            pub fn getId(_shm: *Shm) u32 {
+            pub inline fn getId(_shm: *Shm) u32 {
                 return @as(*client.wl.Proxy, @ptrCast(_shm)).getId();
             }
-            pub fn getVersion(_shm: *Shm) u32 {
+            pub inline fn getVersion(_shm: *Shm) u32 {
                 return @as(*client.wl.Proxy, @ptrCast(_shm)).getVersion();
             }
-            pub fn getUserData(_shm: *Shm) ?*anyopaque {
+            pub inline fn getUserData(_shm: *Shm) ?*anyopaque {
                 return @as(*client.wl.Proxy, @ptrCast(_shm)).getUserData();
             }
-            pub fn setQueue(_shm: *Shm, _queue: *client.wl.EventQueue) void {
+            pub inline fn setQueue(_shm: *Shm, _queue: *client.wl.EventQueue) void {
                 const _proxy: *client.wl.Proxy = @ptrCast(_shm);
                 _proxy.setQueue(_queue);
             }
@@ -1203,7 +1186,7 @@ pub const client = struct {
                 return @ptrCast(try _proxy.marshalConstructor(0, &_args, client.wl.ShmPool.interface));
             }
             pub const create_pool_since_version = 1;
-            pub fn destroy(_shm: *Shm) void {
+            pub inline fn destroy(_shm: *Shm) void {
                 const _proxy: *client.wl.Proxy = @ptrCast(_shm);
                 _proxy.destroy();
             }
@@ -1219,16 +1202,16 @@ pub const client = struct {
         pub const ShmPool = opaque {
             pub const generated_version = 1;
             pub const interface = &common.wl.shm_pool.interface;
-            pub fn getId(_shm_pool: *ShmPool) u32 {
+            pub inline fn getId(_shm_pool: *ShmPool) u32 {
                 return @as(*client.wl.Proxy, @ptrCast(_shm_pool)).getId();
             }
-            pub fn getVersion(_shm_pool: *ShmPool) u32 {
+            pub inline fn getVersion(_shm_pool: *ShmPool) u32 {
                 return @as(*client.wl.Proxy, @ptrCast(_shm_pool)).getVersion();
             }
-            pub fn getUserData(_shm_pool: *ShmPool) ?*anyopaque {
+            pub inline fn getUserData(_shm_pool: *ShmPool) ?*anyopaque {
                 return @as(*client.wl.Proxy, @ptrCast(_shm_pool)).getUserData();
             }
-            pub fn setQueue(_shm_pool: *ShmPool, _queue: *client.wl.EventQueue) void {
+            pub inline fn setQueue(_shm_pool: *ShmPool, _queue: *client.wl.EventQueue) void {
                 const _proxy: *client.wl.Proxy = @ptrCast(_shm_pool);
                 _proxy.setQueue(_queue);
             }
@@ -1302,16 +1285,16 @@ pub const client = struct {
             pub const interface = &common.wl.seat.interface;
             pub const Capability = common.wl.seat.Capability;
             pub const Error = common.wl.seat.Error;
-            pub fn getId(_seat: *Seat) u32 {
+            pub inline fn getId(_seat: *Seat) u32 {
                 return @as(*client.wl.Proxy, @ptrCast(_seat)).getId();
             }
-            pub fn getVersion(_seat: *Seat) u32 {
+            pub inline fn getVersion(_seat: *Seat) u32 {
                 return @as(*client.wl.Proxy, @ptrCast(_seat)).getVersion();
             }
-            pub fn getUserData(_seat: *Seat) ?*anyopaque {
+            pub inline fn getUserData(_seat: *Seat) ?*anyopaque {
                 return @as(*client.wl.Proxy, @ptrCast(_seat)).getUserData();
             }
-            pub fn setQueue(_seat: *Seat, _queue: *client.wl.EventQueue) void {
+            pub inline fn setQueue(_seat: *Seat, _queue: *client.wl.EventQueue) void {
                 const _proxy: *client.wl.Proxy = @ptrCast(_seat);
                 _proxy.setQueue(_queue);
             }
@@ -1437,7 +1420,7 @@ pub const client = struct {
                 _proxy.destroy();
             }
             pub const release_since_version = 5;
-            pub fn destroy(_seat: *Seat) void {
+            pub inline fn destroy(_seat: *Seat) void {
                 const _proxy: *client.wl.Proxy = @ptrCast(_seat);
                 _proxy.destroy();
             }
@@ -1459,16 +1442,16 @@ pub const client = struct {
             pub const Axis = common.wl.pointer.Axis;
             pub const AxisSource = common.wl.pointer.AxisSource;
             pub const AxisRelativeDirection = common.wl.pointer.AxisRelativeDirection;
-            pub fn getId(_pointer: *Pointer) u32 {
+            pub inline fn getId(_pointer: *Pointer) u32 {
                 return @as(*client.wl.Proxy, @ptrCast(_pointer)).getId();
             }
-            pub fn getVersion(_pointer: *Pointer) u32 {
+            pub inline fn getVersion(_pointer: *Pointer) u32 {
                 return @as(*client.wl.Proxy, @ptrCast(_pointer)).getVersion();
             }
-            pub fn getUserData(_pointer: *Pointer) ?*anyopaque {
+            pub inline fn getUserData(_pointer: *Pointer) ?*anyopaque {
                 return @as(*client.wl.Proxy, @ptrCast(_pointer)).getUserData();
             }
-            pub fn setQueue(_pointer: *Pointer, _queue: *client.wl.EventQueue) void {
+            pub inline fn setQueue(_pointer: *Pointer, _queue: *client.wl.EventQueue) void {
                 const _proxy: *client.wl.Proxy = @ptrCast(_pointer);
                 _proxy.setQueue(_queue);
             }
@@ -1742,7 +1725,7 @@ pub const client = struct {
                 _proxy.destroy();
             }
             pub const release_since_version = 3;
-            pub fn destroy(_pointer: *Pointer) void {
+            pub inline fn destroy(_pointer: *Pointer) void {
                 const _proxy: *client.wl.Proxy = @ptrCast(_pointer);
                 _proxy.destroy();
             }
@@ -1765,16 +1748,16 @@ pub const client = struct {
             pub const interface = &common.wl.keyboard.interface;
             pub const KeymapFormat = common.wl.keyboard.KeymapFormat;
             pub const KeyState = common.wl.keyboard.KeyState;
-            pub fn getId(_keyboard: *Keyboard) u32 {
+            pub inline fn getId(_keyboard: *Keyboard) u32 {
                 return @as(*client.wl.Proxy, @ptrCast(_keyboard)).getId();
             }
-            pub fn getVersion(_keyboard: *Keyboard) u32 {
+            pub inline fn getVersion(_keyboard: *Keyboard) u32 {
                 return @as(*client.wl.Proxy, @ptrCast(_keyboard)).getVersion();
             }
-            pub fn getUserData(_keyboard: *Keyboard) ?*anyopaque {
+            pub inline fn getUserData(_keyboard: *Keyboard) ?*anyopaque {
                 return @as(*client.wl.Proxy, @ptrCast(_keyboard)).getUserData();
             }
-            pub fn setQueue(_keyboard: *Keyboard, _queue: *client.wl.EventQueue) void {
+            pub inline fn setQueue(_keyboard: *Keyboard, _queue: *client.wl.EventQueue) void {
                 const _proxy: *client.wl.Proxy = @ptrCast(_keyboard);
                 _proxy.setQueue(_queue);
             }
@@ -1916,7 +1899,7 @@ pub const client = struct {
                 _proxy.destroy();
             }
             pub const release_since_version = 3;
-            pub fn destroy(_keyboard: *Keyboard) void {
+            pub inline fn destroy(_keyboard: *Keyboard) void {
                 const _proxy: *client.wl.Proxy = @ptrCast(_keyboard);
                 _proxy.destroy();
             }
@@ -1933,16 +1916,16 @@ pub const client = struct {
         pub const Touch = opaque {
             pub const generated_version = 5;
             pub const interface = &common.wl.touch.interface;
-            pub fn getId(_touch: *Touch) u32 {
+            pub inline fn getId(_touch: *Touch) u32 {
                 return @as(*client.wl.Proxy, @ptrCast(_touch)).getId();
             }
-            pub fn getVersion(_touch: *Touch) u32 {
+            pub inline fn getVersion(_touch: *Touch) u32 {
                 return @as(*client.wl.Proxy, @ptrCast(_touch)).getVersion();
             }
-            pub fn getUserData(_touch: *Touch) ?*anyopaque {
+            pub inline fn getUserData(_touch: *Touch) ?*anyopaque {
                 return @as(*client.wl.Proxy, @ptrCast(_touch)).getUserData();
             }
-            pub fn setQueue(_touch: *Touch, _queue: *client.wl.EventQueue) void {
+            pub inline fn setQueue(_touch: *Touch, _queue: *client.wl.EventQueue) void {
                 const _proxy: *client.wl.Proxy = @ptrCast(_touch);
                 _proxy.setQueue(_queue);
             }
@@ -2018,7 +2001,7 @@ pub const client = struct {
                 _proxy.destroy();
             }
             pub const release_since_version = 3;
-            pub fn destroy(_touch: *Touch) void {
+            pub inline fn destroy(_touch: *Touch) void {
                 const _proxy: *client.wl.Proxy = @ptrCast(_touch);
                 _proxy.destroy();
             }
@@ -2036,16 +2019,16 @@ pub const client = struct {
             pub const Subpixel = common.wl.output.Subpixel;
             pub const Transform = common.wl.output.Transform;
             pub const Mode = common.wl.output.Mode;
-            pub fn getId(_output: *Output) u32 {
+            pub inline fn getId(_output: *Output) u32 {
                 return @as(*client.wl.Proxy, @ptrCast(_output)).getId();
             }
-            pub fn getVersion(_output: *Output) u32 {
+            pub inline fn getVersion(_output: *Output) u32 {
                 return @as(*client.wl.Proxy, @ptrCast(_output)).getVersion();
             }
-            pub fn getUserData(_output: *Output) ?*anyopaque {
+            pub inline fn getUserData(_output: *Output) ?*anyopaque {
                 return @as(*client.wl.Proxy, @ptrCast(_output)).getUserData();
             }
-            pub fn setQueue(_output: *Output, _queue: *client.wl.EventQueue) void {
+            pub inline fn setQueue(_output: *Output, _queue: *client.wl.EventQueue) void {
                 const _proxy: *client.wl.Proxy = @ptrCast(_output);
                 _proxy.setQueue(_queue);
             }
@@ -2224,7 +2207,7 @@ pub const client = struct {
                 _proxy.destroy();
             }
             pub const release_since_version = 3;
-            pub fn destroy(_output: *Output) void {
+            pub inline fn destroy(_output: *Output) void {
                 const _proxy: *client.wl.Proxy = @ptrCast(_output);
                 _proxy.destroy();
             }
@@ -2246,20 +2229,20 @@ pub const server = struct {
         /// decided to hide wl_resources with opaque pointers in the same way that
         /// wayland-client does with wl_proxys. This of course creates a name conflict.
         pub const Server = opaque {
-            extern fn wl_display_create() ?*Server;
-            pub fn create() !*Server {
-                return wl_display_create() orelse error.ServerCreateFailed;
+            pub inline fn create() error{ServerCreateFailed}!*Server {
+                return ffi.server.wl_display_create() orelse error.ServerCreateFailed;
             }
 
-            extern fn wl_display_destroy(server: *Server) void;
-            pub const destroy = wl_display_destroy;
+            pub inline fn destroy(_server: *Server) void {
+                ffi.server.wl_display_destroy(_server);
+            }
 
-            extern fn wl_display_get_event_loop(server: *Server) *EventLoop;
-            pub const getEventLoop = wl_display_get_event_loop;
+            pub inline fn getEventLoop(_server: *Server) *EventLoop {
+                return ffi.server.wl_display_get_event_loop(_server);
+            }
 
-            extern fn wl_display_add_socket(server: *Server, name: [*:0]const u8) c_int;
-            pub fn addSocket(_server: *Server, name: [*:0]const u8) !void {
-                if (wl_display_add_socket(_server, name) == -1)
+            pub inline fn addSocket(_server: *Server, name: [*:0]const u8) error{AddSocketFailed}!void {
+                if (ffi.server.wl_display_add_socket(_server, name) == -1)
                     return error.AddSocketFailed;
             }
 
@@ -2268,7 +2251,7 @@ pub const server = struct {
             // the library was stabilized. Because of this, it is a good idea to never
             // call the socket wayland-0. So, instead of binding to wayland-server's
             // wl_display_add_socket_auto we implement a version which skips wayland-0.
-            pub fn addSocketAuto(_server: *Server, buf: *[11]u8) ![:0]const u8 {
+            pub fn addSocketAuto(_server: *Server, buf: *[11]u8) error{AddSocketFailed}![:0]const u8 {
                 // Don't use wayland-0
                 var i: u32 = 1;
                 while (i <= 32) : (i += 1) {
@@ -2279,87 +2262,83 @@ pub const server = struct {
                 return error.AddSocketFailed;
             }
 
-            extern fn wl_display_add_socket_fd(_server: *Server, sock_fd: c_int) c_int;
-            pub fn addSocketFd(_server: *Server, sock_fd: c_int) !void {
-                if (wl_display_add_socket_fd(_server, sock_fd) == -1)
+            pub inline fn addSocketFd(_server: *Server, sock_fd: c_int) error{AddSocketFailed}!void {
+                if (ffi.server.wl_display_add_socket_fd(_server, sock_fd) == -1)
                     return error.AddSocketFailed;
             }
 
-            extern fn wl_display_terminate(_server: *Server) void;
-            pub const terminate = wl_display_terminate;
+            pub inline fn terminate(_server: *Server) void {
+                ffi.server.wl_display_terminate(_server);
+            }
 
-            extern fn wl_display_run(_server: *Server) void;
-            pub const run = wl_display_run;
+            pub inline fn run(_server: *Server) void {
+                ffi.server.wl_display_run(_server);
+            }
 
-            extern fn wl_display_flush_clients(_server: *Server) void;
-            pub const flushClients = wl_display_flush_clients;
+            pub inline fn flushClients(_server: *Server) void {
+                ffi.server.wl_display_flush_clients(_server);
+            }
 
-            extern fn wl_display_destroy_clients(_server: *Server) void;
-            pub const destroyClients = wl_display_destroy_clients;
+            pub inline fn destroyClients(_server: *Server) void {
+                ffi.server.wl_display_destroy_clients(_server);
+            }
 
-            extern fn wl_display_get_serial(_server: *Server) u32;
-            pub const getSerial = wl_display_get_serial;
+            pub inline fn getSerial(_server: *Server) u32 {
+                return ffi.server.wl_display_get_serial(_server);
+            }
 
-            extern fn wl_display_next_serial(_server: *Server) u32;
-            pub const nextSerial = wl_display_next_serial;
+            pub inline fn nextSerial(_server: *Server) u32 {
+                return ffi.server.wl_display_next_serial(_server);
+            }
 
-            extern fn wl_display_add_destroy_listener(_server: *Server, listener: *Listener(*Server)) void;
-            pub const addDestroyListener = wl_display_add_destroy_listener;
+            pub inline fn addDestroyListener(_server: *Server, listener: *Listener(*Server)) void {
+                ffi.server.wl_display_add_destroy_listener(_server, listener);
+            }
 
-            extern fn wl_display_add_client_created_listener(_server: *Server, listener: *Listener(*Client)) void;
-            pub const addClientCreatedListener = wl_display_add_client_created_listener;
+            pub inline fn addClientCreatedListener(_server: *Server, listener: *Listener(*Client)) void {
+                ffi.server.wl_display_add_client_created_listener(_server, listener);
+            }
 
             // Doesn't really make sense with our Listener API as we would need to
             // pass a pointer to the wrapper function
-            //extern fn wl_display_get_destroy_listener(_server: *Server, notify: @TypeOf(Listener(*Server).notify)) ?*Listener(*Server);
+            //fn wl_display_get_destroy_listener(_server: *Server, notify: @TypeOf(Listener(*Server).notify)) ?*Listener(*Server);
 
-            extern fn wl_display_set_global_filter(
-                _server: *Server,
-                filter: *const fn (_client: *const Client, global: *const Global, data: ?*anyopaque) callconv(.c) bool,
-                data: ?*anyopaque,
-            ) void;
             pub inline fn setGlobalFilter(
                 _server: *Server,
                 comptime T: type,
                 comptime filter: fn (_client: *const Client, global: *const Global, data: T) bool,
                 data: T,
             ) void {
-                wl_display_set_global_filter(
+                ffi.server.wl_display_set_global_filter(
                     _server,
                     struct {
-                        fn _wrapper(_client: *const Client, _global: *const Global, _data: ?*anyopaque) callconv(.c) bool {
-                            return filter(_client, _global, @ptrCast(@alignCast(_data)));
+                        fn _wrapper(_client: *const Client, global: *const Global, _data: ?*anyopaque) callconv(.c) bool {
+                            return filter(_client, global, @ptrCast(@alignCast(_data)));
                         }
                     }._wrapper,
                     data,
                 );
             }
 
-            extern fn wl_display_get_client_list(_server: *Server) *list.Head(Client, null);
-            pub const getClientList = wl_display_get_client_list;
-
-            extern fn wl_display_init_shm(_server: *Server) c_int;
-            pub fn initShm(_server: *Server) !void {
-                if (wl_display_init_shm(_server) == -1) return error.OutOfMemory;
+            pub inline fn getClientList(_server: *Server) *list.Head(Client, null) {
+                return ffi.server.wl_display_get_client_list(_server);
             }
 
-            extern fn wl_display_add_shm_format(_server: *Server, format: u32) ?*u32;
-            pub fn addShmFormat(_server: *Server, format: u32) !*u32 {
-                return wl_display_add_shm_format(_server, format) orelse error.OutOfMemory;
+            pub inline fn initShm(_server: *Server) error{OutOfMemory}!void {
+                if (ffi.server.wl_display_init_shm(_server) == -1) return error.OutOfMemory;
             }
 
-            extern fn wl_display_add_protocol_logger(
-                _server: *Server,
-                func: *const fn (data: ?*anyopaque, direction: ProtocolLogger.Type, message: *const ProtocolLogger.LogMessage) callconv(.c) void,
-                data: ?*anyopaque,
-            ) void;
+            pub inline fn addShmFormat(_server: *Server, format: u32) error{OutOfMemory}!*u32 {
+                return ffi.server.wl_display_add_shm_format(_server, format) orelse error.OutOfMemory;
+            }
+
             pub inline fn addProtocolLogger(
                 _server: *Server,
                 comptime T: type,
                 comptime func: fn (data: T, direction: ProtocolLogger.Type, message: *const ProtocolLogger.LogMessage) void,
                 data: T,
             ) void {
-                wl_display_add_protocol_logger(
+                ffi.server.wl_display_add_protocol_logger(
                     _server,
                     struct {
                         fn _wrapper(_data: ?*anyopaque, _direction: ProtocolLogger.Type, _message: *const ProtocolLogger.LogMessage) callconv(.c) void {
@@ -2372,65 +2351,69 @@ pub const server = struct {
         };
 
         pub const Client = opaque {
-            extern fn wl_client_create(_server: *Server, fd: c_int) ?*Client;
-            pub const create = wl_client_create;
+            pub inline fn create(_server: *Server, fd: c_int) ?*Client {
+                return ffi.server.wl_client_create(_server, fd);
+            }
 
-            extern fn wl_client_destroy(_client: *Client) void;
-            pub const destroy = wl_client_destroy;
+            pub inline fn destroy(_client: *Client) void {
+                ffi.server.wl_client_destroy(_client);
+            }
 
-            extern fn wl_client_flush(_client: *Client) void;
-            pub const flush = wl_client_flush;
+            pub inline fn flush(_client: *Client) void {
+                ffi.server.wl_client_flush(_client);
+            }
 
-            extern fn wl_client_get_link(_client: *Client) *list.Link;
-            pub const getLink = wl_client_get_link;
+            pub inline fn getLink(_client: *Client) *list.Link {
+                return ffi.server.wl_client_get_link(_client);
+            }
 
-            extern fn wl_client_from_link(link: *list.Link) *Client;
-            pub const fromLink = wl_client_from_link;
+            pub inline fn fromLink(link: *list.Link) *Client {
+                return ffi.server.wl_client_from_link(link);
+            }
 
-            const Credentials = struct {
+            pub const Credentials = struct {
                 pid: posix.pid_t,
                 gid: posix.gid_t,
                 uid: posix.uid_t,
             };
-            extern fn wl_client_get_credentials(_client: *Client, pid: *posix.pid_t, uid: *posix.uid_t, gid: *posix.gid_t) void;
-            pub fn getCredentials(_client: *Client) Credentials {
+            pub inline fn getCredentials(_client: *Client) Credentials {
                 var credentials: Credentials = undefined;
-                wl_client_get_credentials(_client, &credentials.pid, &credentials.uid, &credentials.gid);
+                ffi.server.wl_client_get_credentials(_client, &credentials.pid, &credentials.uid, &credentials.gid);
                 return credentials;
             }
 
-            extern fn wl_client_add_destroy_listener(_client: *Client, listener: *Listener(*Client)) void;
-            pub const addDestroyListener = wl_client_add_destroy_listener;
+            pub inline fn addDestroyListener(_client: *Client, listener: *Listener(*Client)) void {
+                ffi.server.wl_client_add_destroy_listener(_client, listener);
+            }
 
             // Doesn't really make sense with our Listener API as we would need to
             // pass a pointer to the wrapper function
-            //extern fn wl_client_get_destroy_listener(_client: *Client, notify: @TypeOf(Listener(*Client).notify)) ?*Listener(*Client);
+            //fn wl_client_get_destroy_listener(_client: *Client, notify: @TypeOf(Listener(*Client).notify)) ?*Listener(*Client);
 
-            extern fn wl_client_get_object(_client: *Client, id: u32) ?*Resource;
-            pub const getObject = wl_client_get_object;
+            pub inline fn getObject(_client: *Client, id: u32) ?*Resource {
+                return ffi.server.wl_client_get_object(_client, id);
+            }
 
-            extern fn wl_client_post_no_memory(_client: *Client) void;
-            pub const postNoMemory = wl_client_post_no_memory;
+            pub inline fn postNoMemory(_client: *Client) void {
+                ffi.server.wl_client_post_no_memory(_client);
+            }
 
-            extern fn wl_client_post_implementation_error(_client: *Client, msg: [*:0]const u8, ...) void;
-            pub const postImplementationError = wl_client_post_implementation_error;
+            pub inline fn postImplementationError(_client: *Client, msg: [*:0]const u8) void {
+                ffi.server.wl_client_post_implementation_error(_client, "%s", msg);
+            }
 
-            extern fn wl_client_add_resource_created_listener(_client: *Client, listener: *Listener(*Resource)) void;
-            pub const addResourceCreatedListener = wl_client_add_resource_created_listener;
+            pub inline fn addResourceCreatedListener(_client: *Client, listener: *Listener(*Resource)) void {
+                ffi.server.wl_client_add_resource_created_listener(_client, listener);
+            }
 
-            const IteratorResult = enum(c_int) { stop, cont };
-            extern fn wl_client_for_each_resource(
-                _client: *Client,
-                iterator: *const fn (resource: *Resource, data: ?*anyopaque) callconv(.c) IteratorResult,
-                data: ?*anyopaque,
-            ) void;
+            pub const IteratorResult = enum(c_int) { stop, cont };
             pub inline fn forEachResource(
                 _client: *Client,
                 comptime T: type,
                 comptime iterator: fn (resource: *Resource, data: T) IteratorResult,
                 data: T,
             ) void {
-                wl_client_for_each_resource(
+                ffi.server.wl_client_for_each_resource(
                     _client,
                     struct {
                         fn _wrapper(_resource: *Resource, _data: ?*anyopaque) callconv(.c) IteratorResult {
@@ -2441,21 +2424,16 @@ pub const server = struct {
                 );
             }
 
-            extern fn wl_client_get_fd(_client: *Client) c_int;
-            pub const getFd = wl_client_get_fd;
+            pub inline fn getFd(_client: *Client) c_int {
+                return ffi.server.wl_client_get_fd(_client);
+            }
 
-            extern fn wl_client_get_display(_client: *Client) *Server;
-            pub const getDisplay = wl_client_get_display;
+            pub inline fn getDisplay(_client: *Client) *Server {
+                return ffi.server.wl_client_get_display(_client);
+            }
         };
 
         pub const Global = opaque {
-            extern fn wl_global_create(
-                _server: *Server,
-                interface: *const Interface,
-                version: c_int,
-                data: ?*anyopaque,
-                bind: *const fn (_client: *Client, data: ?*anyopaque, version: u32, id: u32) callconv(.c) void,
-            ) ?*Global;
             pub inline fn create(
                 _server: *Server,
                 comptime T: type,
@@ -2464,7 +2442,7 @@ pub const server = struct {
                 data: DataT,
                 comptime bind: fn (_client: *Client, data: DataT, version: u32, id: u32) void,
             ) error{GlobalCreateFailed}!*Global {
-                return wl_global_create(
+                return ffi.server.wl_global_create(
                     _server,
                     T.interface,
                     @as(c_int, @intCast(version)),
@@ -2477,46 +2455,55 @@ pub const server = struct {
                 ) orelse error.GlobalCreateFailed;
             }
 
-            extern fn wl_global_remove(global: *Global) void;
-            pub const remove = wl_global_remove;
+            pub inline fn remove(global: *Global) void {
+                ffi.server.wl_global_remove(global);
+            }
 
-            extern fn wl_global_destroy(global: *Global) void;
-            pub const destroy = wl_global_destroy;
+            pub inline fn destroy(global: *Global) void {
+                ffi.server.wl_global_destroy(global);
+            }
 
-            extern fn wl_global_get_interface(global: *const Global) *const Interface;
-            pub const getInterface = wl_global_get_interface;
+            pub inline fn getInterface(global: *const Global) *const Interface {
+                return ffi.server.wl_global_get_interface(global);
+            }
 
-            extern fn wl_global_get_name(global: *const Global, _client: *const Client) u32;
-            pub const getName = wl_global_get_name;
+            pub inline fn getName(global: *const Global, _client: *const Client) u32 {
+                return ffi.server.wl_global_get_name(global, _client);
+            }
 
-            extern fn wl_global_get_user_data(global: *const Global) ?*anyopaque;
-            pub const getUserData = wl_global_get_user_data;
+            pub inline fn getUserData(global: *const Global) ?*anyopaque {
+                return ffi.server.wl_global_get_user_data(global);
+            }
         };
 
         pub const Resource = opaque {
-            extern fn wl_resource_create(_client: *Client, interface: *const Interface, version: c_int, id: u32) ?*Resource;
             pub inline fn create(_client: *Client, comptime T: type, version: u32, id: u32) error{ResourceCreateFailed}!*Resource {
                 // This is only a c_int because of legacy libwayland reasons. Negative versions are invalid.
                 // Version is a u32 on the wire and for wl_global, wl_proxy, etc.
-                return wl_resource_create(_client, T.interface, @as(c_int, @intCast(version)), id) orelse error.ResourceCreateFailed;
+                return ffi.server.wl_resource_create(_client, T.interface, @as(c_int, @intCast(version)), id) orelse error.ResourceCreateFailed;
             }
 
-            extern fn wl_resource_destroy(resource: *Resource) void;
-            pub const destroy = wl_resource_destroy;
+            pub inline fn destroy(resource: *Resource) void {
+                ffi.server.wl_resource_destroy(resource);
+            }
 
-            extern fn wl_resource_post_event_array(resource: *Resource, opcode: u32, args: ?[*]Argument) void;
-            pub const postEvent = wl_resource_post_event_array;
+            pub inline fn postEvent(resource: *Resource, opcode: u32, args: ?[*]Argument) void {
+                ffi.server.wl_resource_post_event_array(resource, opcode, args);
+            }
 
-            extern fn wl_resource_queue_event_array(resource: *Resource, opcode: u32, args: ?[*]Argument) void;
-            pub const queueEvent = wl_resource_queue_event_array;
+            pub inline fn queueEvent(resource: *Resource, opcode: u32, args: ?[*]Argument) void {
+                ffi.server.wl_resource_queue_event_array(resource, opcode, args);
+            }
 
-            extern fn wl_resource_post_error(resource: *Resource, code: u32, message: [*:0]const u8, ...) void;
-            pub const postError = wl_resource_post_error;
+            pub inline fn postError(resource: *Resource, code: u32, message: [*:0]const u8) void {
+                ffi.server.wl_resource_post_error(resource, code, "%s", message);
+            }
 
-            extern fn wl_resource_post_no_memory(resource: *Resource) void;
-            pub const postNoMemory = wl_resource_post_no_memory;
+            pub inline fn postNoMemory(resource: *Resource) void {
+                ffi.server.wl_resource_post_no_memory(resource);
+            }
 
-            const DispatcherFn = fn (
+            pub const DispatcherFn = fn (
                 implementation: ?*const anyopaque,
                 resource: *Resource,
                 opcode: u32,
@@ -2524,61 +2511,61 @@ pub const server = struct {
                 args: [*]Argument,
             ) callconv(.c) c_int;
             pub const DestroyFn = fn (resource: *Resource) callconv(.c) void;
-            extern fn wl_resource_set_dispatcher(
-                resource: *Resource,
-                dispatcher: ?*const DispatcherFn,
-                implementation: ?*const anyopaque,
-                data: ?*anyopaque,
-                destroy_fn: ?*const DestroyFn,
-            ) void;
-            pub fn setDispatcher(
+            pub inline fn setDispatcher(
                 resource: *Resource,
                 dispatcher: ?*const DispatcherFn,
                 implementation: ?*const anyopaque,
                 data: ?*anyopaque,
                 destroy_fn: ?*const DestroyFn,
             ) void {
-                wl_resource_set_dispatcher(resource, dispatcher, implementation, data, destroy_fn);
+                ffi.server.wl_resource_set_dispatcher(resource, dispatcher, implementation, data, destroy_fn);
             }
 
-            extern fn wl_resource_get_user_data(resource: *Resource) ?*anyopaque;
-            pub const getUserData = wl_resource_get_user_data;
+            pub inline fn getUserData(resource: *Resource) ?*anyopaque {
+                return ffi.server.wl_resource_get_user_data(resource);
+            }
 
-            extern fn wl_resource_get_id(resource: *Resource) u32;
-            pub const getId = wl_resource_get_id;
+            pub inline fn getId(resource: *Resource) u32 {
+                return ffi.server.wl_resource_get_id(resource);
+            }
 
-            extern fn wl_resource_get_link(resource: *Resource) *list.Link;
-            pub const getLink = wl_resource_get_link;
+            pub inline fn getLink(resource: *Resource) *list.Link {
+                return ffi.server.wl_resource_get_link(resource);
+            }
 
-            extern fn wl_resource_from_link(link: *list.Link) *Resource;
-            pub const fromLink = wl_resource_from_link;
+            pub inline fn fromLink(link: *list.Link) *Resource {
+                return ffi.server.wl_resource_from_link(link);
+            }
 
-            extern fn wl_resource_find_for_client(list: *list.Head(Resource, null), _client: *Client) ?*Resource;
-            pub const findForClient = wl_resource_find_for_client;
+            pub inline fn findForClient(_list: *list.Head(Resource, null), _client: *Client) ?*Resource {
+                return ffi.server.wl_resource_find_for_client(_list, _client);
+            }
 
-            extern fn wl_resource_get_client(resource: *Resource) *Client;
-            pub const getClient = wl_resource_get_client;
+            pub inline fn getClient(resource: *Resource) *Client {
+                return ffi.server.wl_resource_get_client(resource);
+            }
 
-            extern fn wl_resource_get_version(resource: *Resource) c_int;
-            pub fn getVersion(resource: *Resource) u32 {
+            pub inline fn getVersion(resource: *Resource) u32 {
                 // The fact that wl_resource.version is a int in libwayland is
                 // a mistake. Negative versions are impossible and u32 is used
                 // everywhere else in libwayland
-                return @as(u32, @intCast(wl_resource_get_version(resource)));
+                return @as(u32, @intCast(ffi.server.wl_resource_get_version(resource)));
             }
 
             // TOOD: unsure if this should be bound
-            extern fn wl_resource_set_destructor(resource: *Resource, destroy: DestroyFn) void;
+            //fn wl_resource_set_destructor(resource: *Resource, destroy: DestroyFn) void;
 
-            extern fn wl_resource_get_class(resource: *Resource) [*:0]const u8;
-            pub const getClass = wl_resource_get_class;
+            pub inline fn getClass(resource: *Resource) [*:0]const u8 {
+                return ffi.server.wl_resource_get_class(resource);
+            }
 
-            extern fn wl_resource_add_destroy_listener(resource: *Resource, listener: *Listener(*Resource)) void;
-            pub const addDestroyListener = wl_resource_add_destroy_listener;
+            pub inline fn addDestroyListener(resource: *Resource, listener: *Listener(*Resource)) void {
+                ffi.server.wl_resource_add_destroy_listener(resource, listener);
+            }
 
             // Doesn't really make sense with our Listener API as we would need to
             // pass a pointer to the wrapper function
-            //extern fn wl_resource_get_destroy_listener(resource: *Resource, notify: @TypeOf(Listener(*Resource).notify)) ?*Listener(*Resource);
+            //fn wl_resource_get_destroy_listener(resource: *Resource, notify: @TypeOf(Listener(*Resource).notify)) ?*Listener(*Resource);
         };
 
         pub const ProtocolLogger = opaque {
@@ -2595,8 +2582,9 @@ pub const server = struct {
                 arguments: ?[*]Argument,
             };
 
-            extern fn wl_protocol_logger_destroy(logger: *ProtocolLogger) void;
-            pub const destroy = wl_protocol_logger_destroy;
+            pub inline fn destroy(logger: *ProtocolLogger) void {
+                ffi.server.wl_protocol_logger_destroy(logger);
+            }
         };
 
         pub fn Listener(comptime T: type) type {
@@ -2704,21 +2692,14 @@ pub const server = struct {
         };
 
         pub const EventLoop = opaque {
-            extern fn wl_event_loop_create() ?*EventLoop;
-            pub fn create() !*EventLoop {
-                return wl_event_loop_create() orelse error.EventLoopCreateFailed;
+            pub inline fn create() error{EventLoopCreateFailed}!*EventLoop {
+                return ffi.server.wl_event_loop_create() orelse error.EventLoopCreateFailed;
             }
 
-            extern fn wl_event_loop_destroy(loop: *EventLoop) void;
-            pub const destroy = wl_event_loop_destroy;
+            pub inline fn destroy(loop: *EventLoop) void {
+                ffi.server.wl_event_loop_destroy(loop);
+            }
 
-            extern fn wl_event_loop_add_fd(
-                loop: *EventLoop,
-                fd: c_int,
-                mask: u32,
-                func: *const fn (fd: c_int, mask: u32, data: ?*anyopaque) callconv(.c) c_int,
-                data: ?*anyopaque,
-            ) ?*EventSource;
             pub inline fn addFd(
                 loop: *EventLoop,
                 comptime T: type,
@@ -2727,7 +2708,7 @@ pub const server = struct {
                 comptime func: fn (fd: c_int, mask: EventMask, data: T) c_int,
                 data: T,
             ) error{AddFdFailed}!*EventSource {
-                return wl_event_loop_add_fd(
+                return ffi.server.wl_event_loop_add_fd(
                     loop,
                     fd,
                     @bitCast(mask),
@@ -2740,18 +2721,13 @@ pub const server = struct {
                 ) orelse error.AddFdFailed;
             }
 
-            extern fn wl_event_loop_add_timer(
-                loop: *EventLoop,
-                func: *const fn (data: ?*anyopaque) callconv(.c) c_int,
-                data: ?*anyopaque,
-            ) ?*EventSource;
             pub inline fn addTimer(
                 loop: *EventLoop,
                 comptime T: type,
                 comptime func: fn (data: T) c_int,
                 data: T,
             ) error{AddTimerFailed}!*EventSource {
-                return wl_event_loop_add_timer(
+                return ffi.server.wl_event_loop_add_timer(
                     loop,
                     struct {
                         fn _wrapper(_data: ?*anyopaque) callconv(.c) c_int {
@@ -2762,12 +2738,6 @@ pub const server = struct {
                 ) orelse error.AddTimerFailed;
             }
 
-            extern fn wl_event_loop_add_signal(
-                loop: *EventLoop,
-                signal_number: c_int,
-                func: *const fn (c_int, ?*anyopaque) callconv(.c) c_int,
-                data: ?*anyopaque,
-            ) ?*EventSource;
             pub inline fn addSignal(
                 loop: *EventLoop,
                 comptime T: type,
@@ -2775,7 +2745,7 @@ pub const server = struct {
                 comptime func: fn (signal_number: c_int, data: T) c_int,
                 data: T,
             ) error{AddSignalFailed}!*EventSource {
-                return wl_event_loop_add_signal(
+                return ffi.server.wl_event_loop_add_signal(
                     loop,
                     signal_number,
                     struct {
@@ -2787,18 +2757,13 @@ pub const server = struct {
                 ) orelse error.AddSignalFailed;
             }
 
-            extern fn wl_event_loop_add_idle(
-                loop: *EventLoop,
-                func: *const fn (data: ?*anyopaque) callconv(.c) void,
-                data: ?*anyopaque,
-            ) ?*EventSource;
             pub inline fn addIdle(
                 loop: *EventLoop,
                 comptime T: type,
                 comptime func: fn (data: T) void,
                 data: T,
             ) error{OutOfMemory}!*EventSource {
-                return wl_event_loop_add_idle(
+                return ffi.server.wl_event_loop_add_idle(
                     loop,
                     struct {
                         fn _wrapper(_data: ?*anyopaque) callconv(.c) void {
@@ -2809,9 +2774,8 @@ pub const server = struct {
                 ) orelse error.OutOfMemory;
             }
 
-            extern fn wl_event_loop_dispatch(loop: *EventLoop, timeout: c_int) c_int;
-            pub fn dispatch(loop: *EventLoop, timeout: c_int) !void {
-                const rc = wl_event_loop_dispatch(loop, timeout);
+            pub inline fn dispatch(loop: *EventLoop, timeout: c_int) posix.UnexpectedError!void {
+                const rc = ffi.server.wl_event_loop_dispatch(loop, timeout);
                 switch (posix.errno(rc)) {
                     .SUCCESS => return,
                     // TODO
@@ -2819,31 +2783,33 @@ pub const server = struct {
                 }
             }
 
-            extern fn wl_event_loop_dispatch_idle(loop: *EventLoop) void;
-            pub const dispatchIdle = wl_event_loop_dispatch_idle;
+            pub inline fn dispatchIdle(loop: *EventLoop) void {
+                ffi.server.wl_event_loop_dispatch_idle(loop);
+            }
 
-            extern fn wl_event_loop_get_fd(loop: *EventLoop) c_int;
-            pub const getFd = wl_event_loop_get_fd;
+            pub inline fn getFd(loop: *EventLoop) c_int {
+                return ffi.server.wl_event_loop_get_fd(loop);
+            }
 
-            extern fn wl_event_loop_add_destroy_listener(loop: *EventLoop, listener: *Listener(*EventLoop)) void;
-            pub const addDestroyListener = wl_event_loop_add_destroy_listener;
+            pub inline fn addDestroyListener(loop: *EventLoop, listener: *Listener(*EventLoop)) void {
+                ffi.server.wl_event_loop_add_destroy_listener(loop, listener);
+            }
 
-            //extern fn wl_event_loop_get_destroy_listener(loop: *EventLoop, notify: @TypeOf(Listener(*EventLoop).notify)) ?*Listener;
+            //fn wl_event_loop_get_destroy_listener(loop: *EventLoop, notify: @TypeOf(Listener(*EventLoop).notify)) ?*Listener;
             //pub const getDestroyListener = wl_event_loop_get_destroy_listener;
         };
 
         pub const EventSource = opaque {
-            extern fn wl_event_source_remove(source: *EventSource) c_int;
-            pub fn remove(source: *EventSource) void {
-                if (wl_event_source_remove(source) != 0) unreachable;
+            pub inline fn remove(source: *EventSource) void {
+                if (ffi.server.wl_event_source_remove(source) != 0) unreachable;
             }
 
-            extern fn wl_event_source_check(source: *EventSource) void;
-            pub const check = wl_event_source_check;
+            pub inline fn check(source: *EventSource) void {
+                ffi.server.wl_event_source_check(source);
+            }
 
-            extern fn wl_event_source_fd_update(source: *EventSource, mask: u32) c_int;
-            pub fn fdUpdate(source: *EventSource, mask: EventMask) !void {
-                const rc = wl_event_source_fd_update(source, @bitCast(mask));
+            pub inline fn fdUpdate(source: *EventSource, mask: EventMask) posix.UnexpectedError!void {
+                const rc = ffi.server.wl_event_source_fd_update(source, @bitCast(mask));
                 switch (posix.errno(rc)) {
                     .SUCCESS => return,
                     // TODO
@@ -2851,9 +2817,8 @@ pub const server = struct {
                 }
             }
 
-            extern fn wl_event_source_timer_update(source: *EventSource, ms_delay: c_int) c_int;
-            pub fn timerUpdate(source: *EventSource, ms_delay: c_int) !void {
-                const rc = wl_event_source_timer_update(source, ms_delay);
+            pub inline fn timerUpdate(source: *EventSource, ms_delay: c_int) posix.UnexpectedError!void {
+                const rc = ffi.server.wl_event_source_timer_update(source, ms_delay);
                 switch (posix.errno(rc)) {
                     .SUCCESS => return,
                     // TODO
@@ -2864,37 +2829,47 @@ pub const server = struct {
 
         pub const shm = struct {
             pub const Buffer = opaque {
-                extern fn wl_shm_buffer_get(resource: *Resource) ?*shm.Buffer;
-                pub const get = wl_shm_buffer_get;
+                pub inline fn get(resource: *Resource) ?*shm.Buffer {
+                    return ffi.server.wl_shm_buffer_get(resource);
+                }
 
-                extern fn wl_shm_buffer_begin_access(buffer: *shm.Buffer) void;
-                pub const beginAccess = wl_shm_buffer_begin_access;
+                pub inline fn beginAccess(buffer: *shm.Buffer) void {
+                    ffi.server.wl_shm_buffer_begin_access(buffer);
+                }
 
-                extern fn wl_shm_buffer_end_access(buffer: *shm.Buffer) void;
-                pub const endAccess = wl_shm_buffer_end_access;
+                pub inline fn endAccess(buffer: *shm.Buffer) void {
+                    ffi.server.wl_shm_buffer_end_access(buffer);
+                }
 
-                extern fn wl_shm_buffer_get_data(buffer: *shm.Buffer) ?*anyopaque;
-                pub const getData = wl_shm_buffer_get_data;
+                pub inline fn getData(buffer: *shm.Buffer) ?*anyopaque {
+                    return ffi.server.wl_shm_buffer_get_data(buffer);
+                }
 
-                extern fn wl_shm_buffer_get_format(buffer: *shm.Buffer) u32;
-                pub const getFormat = wl_shm_buffer_get_format;
+                pub inline fn getFormat(buffer: *shm.Buffer) u32 {
+                    return ffi.server.wl_shm_buffer_get_format(buffer);
+                }
 
-                extern fn wl_shm_buffer_get_height(buffer: *shm.Buffer) i32;
-                pub const getHeight = wl_shm_buffer_get_height;
+                pub inline fn getHeight(buffer: *shm.Buffer) i32 {
+                    return ffi.server.wl_shm_buffer_get_height(buffer);
+                }
 
-                extern fn wl_shm_buffer_get_width(buffer: *shm.Buffer) i32;
-                pub const getWidth = wl_shm_buffer_get_width;
+                pub inline fn getWidth(buffer: *shm.Buffer) i32 {
+                    return ffi.server.wl_shm_buffer_get_width(buffer);
+                }
 
-                extern fn wl_shm_buffer_get_stride(buffer: *shm.Buffer) i32;
-                pub const getStride = wl_shm_buffer_get_stride;
+                pub inline fn getStride(buffer: *shm.Buffer) i32 {
+                    return ffi.server.wl_shm_buffer_get_stride(buffer);
+                }
 
-                extern fn wl_shm_buffer_ref_pool(buffer: *shm.Buffer) *Pool;
-                pub const refPool = wl_shm_buffer_ref_pool;
+                pub inline fn refPool(buffer: *shm.Buffer) *Pool {
+                    return ffi.server.wl_shm_buffer_ref_pool(buffer);
+                }
             };
 
             pub const Pool = opaque {
-                extern fn wl_shm_pool_unref(pool: *Pool) void;
-                pub const unref = wl_shm_pool_unref;
+                pub inline fn unref(pool: *Pool) void {
+                    ffi.server.wl_shm_pool_unref(pool);
+                }
             };
         };
 
@@ -2904,34 +2879,34 @@ pub const server = struct {
             pub const generated_version = 1;
             pub const interface = &common.wl.display.interface;
             pub const Error = common.wl.display.Error;
-            pub fn create(_client: *server.wl.Client, _version: u32, _id: u32) !*Display {
+            pub inline fn create(_client: *server.wl.Client, _version: u32, _id: u32) error{ResourceCreateFailed}!*Display {
                 return @ptrCast(try server.wl.Resource.create(_client, Display, _version, _id));
             }
-            pub fn destroy(_display: *Display) void {
+            pub inline fn destroy(_display: *Display) void {
                 return @as(*server.wl.Resource, @ptrCast(_display)).destroy();
             }
-            pub fn fromLink(_link: *server.wl.list.Link) *Display {
+            pub inline fn fromLink(_link: *server.wl.list.Link) *Display {
                 return @ptrCast(server.wl.Resource.fromLink(_link));
             }
-            pub fn getLink(_display: *Display) *server.wl.list.Link {
+            pub inline fn getLink(_display: *Display) *server.wl.list.Link {
                 return @as(*server.wl.Resource, @ptrCast(_display)).getLink();
             }
-            pub fn getClient(_display: *Display) *server.wl.Client {
+            pub inline fn getClient(_display: *Display) *server.wl.Client {
                 return @as(*server.wl.Resource, @ptrCast(_display)).getClient();
             }
-            pub fn getId(_display: *Display) u32 {
+            pub inline fn getId(_display: *Display) u32 {
                 return @as(*server.wl.Resource, @ptrCast(_display)).getId();
             }
-            pub fn getVersion(_display: *Display) u32 {
+            pub inline fn getVersion(_display: *Display) u32 {
                 return @as(*server.wl.Resource, @ptrCast(_display)).getVersion();
             }
-            pub fn postNoMemory(_display: *Display) void {
+            pub inline fn postNoMemory(_display: *Display) void {
                 return @as(*server.wl.Resource, @ptrCast(_display)).postNoMemory();
             }
-            pub fn getUserData(_display: *Display) ?*anyopaque {
+            pub inline fn getUserData(_display: *Display) ?*anyopaque {
                 return @as(*server.wl.Resource, @ptrCast(_display)).getUserData();
             }
-            pub fn postError(_display: *Display, _err: Error, _message: [*:0]const u8) void {
+            pub inline fn postError(_display: *Display, _err: Error, _message: [*:0]const u8) void {
                 return @as(*server.wl.Resource, @ptrCast(_display)).postError(@intCast(@intFromEnum(_err)), _message);
             }
             pub const Request = union(enum) {
@@ -3044,31 +3019,31 @@ pub const server = struct {
         pub const Registry = opaque {
             pub const generated_version = 1;
             pub const interface = &common.wl.registry.interface;
-            pub fn create(_client: *server.wl.Client, _version: u32, _id: u32) !*Registry {
+            pub inline fn create(_client: *server.wl.Client, _version: u32, _id: u32) error{ResourceCreateFailed}!*Registry {
                 return @ptrCast(try server.wl.Resource.create(_client, Registry, _version, _id));
             }
-            pub fn destroy(_registry: *Registry) void {
+            pub inline fn destroy(_registry: *Registry) void {
                 return @as(*server.wl.Resource, @ptrCast(_registry)).destroy();
             }
-            pub fn fromLink(_link: *server.wl.list.Link) *Registry {
+            pub inline fn fromLink(_link: *server.wl.list.Link) *Registry {
                 return @ptrCast(server.wl.Resource.fromLink(_link));
             }
-            pub fn getLink(_registry: *Registry) *server.wl.list.Link {
+            pub inline fn getLink(_registry: *Registry) *server.wl.list.Link {
                 return @as(*server.wl.Resource, @ptrCast(_registry)).getLink();
             }
-            pub fn getClient(_registry: *Registry) *server.wl.Client {
+            pub inline fn getClient(_registry: *Registry) *server.wl.Client {
                 return @as(*server.wl.Resource, @ptrCast(_registry)).getClient();
             }
-            pub fn getId(_registry: *Registry) u32 {
+            pub inline fn getId(_registry: *Registry) u32 {
                 return @as(*server.wl.Resource, @ptrCast(_registry)).getId();
             }
-            pub fn getVersion(_registry: *Registry) u32 {
+            pub inline fn getVersion(_registry: *Registry) u32 {
                 return @as(*server.wl.Resource, @ptrCast(_registry)).getVersion();
             }
-            pub fn postNoMemory(_registry: *Registry) void {
+            pub inline fn postNoMemory(_registry: *Registry) void {
                 return @as(*server.wl.Resource, @ptrCast(_registry)).postNoMemory();
             }
-            pub fn getUserData(_registry: *Registry) ?*anyopaque {
+            pub inline fn getUserData(_registry: *Registry) ?*anyopaque {
                 return @as(*server.wl.Resource, @ptrCast(_registry)).getUserData();
             }
             pub const Request = union(enum) {
@@ -3149,31 +3124,31 @@ pub const server = struct {
         pub const Callback = opaque {
             pub const generated_version = 1;
             pub const interface = &common.wl.callback.interface;
-            pub fn create(_client: *server.wl.Client, _version: u32, _id: u32) !*Callback {
+            pub inline fn create(_client: *server.wl.Client, _version: u32, _id: u32) error{ResourceCreateFailed}!*Callback {
                 return @ptrCast(try server.wl.Resource.create(_client, Callback, _version, _id));
             }
-            pub fn destroy(_callback: *Callback) void {
+            pub inline fn destroy(_callback: *Callback) void {
                 return @as(*server.wl.Resource, @ptrCast(_callback)).destroy();
             }
-            pub fn fromLink(_link: *server.wl.list.Link) *Callback {
+            pub inline fn fromLink(_link: *server.wl.list.Link) *Callback {
                 return @ptrCast(server.wl.Resource.fromLink(_link));
             }
-            pub fn getLink(_callback: *Callback) *server.wl.list.Link {
+            pub inline fn getLink(_callback: *Callback) *server.wl.list.Link {
                 return @as(*server.wl.Resource, @ptrCast(_callback)).getLink();
             }
-            pub fn getClient(_callback: *Callback) *server.wl.Client {
+            pub inline fn getClient(_callback: *Callback) *server.wl.Client {
                 return @as(*server.wl.Resource, @ptrCast(_callback)).getClient();
             }
-            pub fn getId(_callback: *Callback) u32 {
+            pub inline fn getId(_callback: *Callback) u32 {
                 return @as(*server.wl.Resource, @ptrCast(_callback)).getId();
             }
-            pub fn getVersion(_callback: *Callback) u32 {
+            pub inline fn getVersion(_callback: *Callback) u32 {
                 return @as(*server.wl.Resource, @ptrCast(_callback)).getVersion();
             }
-            pub fn postNoMemory(_callback: *Callback) void {
+            pub inline fn postNoMemory(_callback: *Callback) void {
                 return @as(*server.wl.Resource, @ptrCast(_callback)).postNoMemory();
             }
-            pub fn getUserData(_callback: *Callback) ?*anyopaque {
+            pub inline fn getUserData(_callback: *Callback) ?*anyopaque {
                 return @as(*server.wl.Resource, @ptrCast(_callback)).getUserData();
             }
             pub inline fn setHandler(
@@ -3227,31 +3202,31 @@ pub const server = struct {
         pub const Buffer = opaque {
             pub const generated_version = 1;
             pub const interface = &common.wl.buffer.interface;
-            pub fn create(_client: *server.wl.Client, _version: u32, _id: u32) !*Buffer {
+            pub inline fn create(_client: *server.wl.Client, _version: u32, _id: u32) error{ResourceCreateFailed}!*Buffer {
                 return @ptrCast(try server.wl.Resource.create(_client, Buffer, _version, _id));
             }
-            pub fn destroy(_buffer: *Buffer) void {
+            pub inline fn destroy(_buffer: *Buffer) void {
                 return @as(*server.wl.Resource, @ptrCast(_buffer)).destroy();
             }
-            pub fn fromLink(_link: *server.wl.list.Link) *Buffer {
+            pub inline fn fromLink(_link: *server.wl.list.Link) *Buffer {
                 return @ptrCast(server.wl.Resource.fromLink(_link));
             }
-            pub fn getLink(_buffer: *Buffer) *server.wl.list.Link {
+            pub inline fn getLink(_buffer: *Buffer) *server.wl.list.Link {
                 return @as(*server.wl.Resource, @ptrCast(_buffer)).getLink();
             }
-            pub fn getClient(_buffer: *Buffer) *server.wl.Client {
+            pub inline fn getClient(_buffer: *Buffer) *server.wl.Client {
                 return @as(*server.wl.Resource, @ptrCast(_buffer)).getClient();
             }
-            pub fn getId(_buffer: *Buffer) u32 {
+            pub inline fn getId(_buffer: *Buffer) u32 {
                 return @as(*server.wl.Resource, @ptrCast(_buffer)).getId();
             }
-            pub fn getVersion(_buffer: *Buffer) u32 {
+            pub inline fn getVersion(_buffer: *Buffer) u32 {
                 return @as(*server.wl.Resource, @ptrCast(_buffer)).getVersion();
             }
-            pub fn postNoMemory(_buffer: *Buffer) void {
+            pub inline fn postNoMemory(_buffer: *Buffer) void {
                 return @as(*server.wl.Resource, @ptrCast(_buffer)).postNoMemory();
             }
-            pub fn getUserData(_buffer: *Buffer) ?*anyopaque {
+            pub inline fn getUserData(_buffer: *Buffer) ?*anyopaque {
                 return @as(*server.wl.Resource, @ptrCast(_buffer)).getUserData();
             }
             pub const Request = union(enum) {
@@ -3312,31 +3287,31 @@ pub const server = struct {
         pub const Compositor = opaque {
             pub const generated_version = 5;
             pub const interface = &common.wl.compositor.interface;
-            pub fn create(_client: *server.wl.Client, _version: u32, _id: u32) !*Compositor {
+            pub inline fn create(_client: *server.wl.Client, _version: u32, _id: u32) error{ResourceCreateFailed}!*Compositor {
                 return @ptrCast(try server.wl.Resource.create(_client, Compositor, _version, _id));
             }
-            pub fn destroy(_compositor: *Compositor) void {
+            pub inline fn destroy(_compositor: *Compositor) void {
                 return @as(*server.wl.Resource, @ptrCast(_compositor)).destroy();
             }
-            pub fn fromLink(_link: *server.wl.list.Link) *Compositor {
+            pub inline fn fromLink(_link: *server.wl.list.Link) *Compositor {
                 return @ptrCast(server.wl.Resource.fromLink(_link));
             }
-            pub fn getLink(_compositor: *Compositor) *server.wl.list.Link {
+            pub inline fn getLink(_compositor: *Compositor) *server.wl.list.Link {
                 return @as(*server.wl.Resource, @ptrCast(_compositor)).getLink();
             }
-            pub fn getClient(_compositor: *Compositor) *server.wl.Client {
+            pub inline fn getClient(_compositor: *Compositor) *server.wl.Client {
                 return @as(*server.wl.Resource, @ptrCast(_compositor)).getClient();
             }
-            pub fn getId(_compositor: *Compositor) u32 {
+            pub inline fn getId(_compositor: *Compositor) u32 {
                 return @as(*server.wl.Resource, @ptrCast(_compositor)).getId();
             }
-            pub fn getVersion(_compositor: *Compositor) u32 {
+            pub inline fn getVersion(_compositor: *Compositor) u32 {
                 return @as(*server.wl.Resource, @ptrCast(_compositor)).getVersion();
             }
-            pub fn postNoMemory(_compositor: *Compositor) void {
+            pub inline fn postNoMemory(_compositor: *Compositor) void {
                 return @as(*server.wl.Resource, @ptrCast(_compositor)).postNoMemory();
             }
-            pub fn getUserData(_compositor: *Compositor) ?*anyopaque {
+            pub inline fn getUserData(_compositor: *Compositor) ?*anyopaque {
                 return @as(*server.wl.Resource, @ptrCast(_compositor)).getUserData();
             }
             pub const Request = union(enum) {
@@ -3423,34 +3398,34 @@ pub const server = struct {
             pub const generated_version = 5;
             pub const interface = &common.wl.surface.interface;
             pub const Error = common.wl.surface.Error;
-            pub fn create(_client: *server.wl.Client, _version: u32, _id: u32) !*Surface {
+            pub inline fn create(_client: *server.wl.Client, _version: u32, _id: u32) error{ResourceCreateFailed}!*Surface {
                 return @ptrCast(try server.wl.Resource.create(_client, Surface, _version, _id));
             }
-            pub fn destroy(_surface: *Surface) void {
+            pub inline fn destroy(_surface: *Surface) void {
                 return @as(*server.wl.Resource, @ptrCast(_surface)).destroy();
             }
-            pub fn fromLink(_link: *server.wl.list.Link) *Surface {
+            pub inline fn fromLink(_link: *server.wl.list.Link) *Surface {
                 return @ptrCast(server.wl.Resource.fromLink(_link));
             }
-            pub fn getLink(_surface: *Surface) *server.wl.list.Link {
+            pub inline fn getLink(_surface: *Surface) *server.wl.list.Link {
                 return @as(*server.wl.Resource, @ptrCast(_surface)).getLink();
             }
-            pub fn getClient(_surface: *Surface) *server.wl.Client {
+            pub inline fn getClient(_surface: *Surface) *server.wl.Client {
                 return @as(*server.wl.Resource, @ptrCast(_surface)).getClient();
             }
-            pub fn getId(_surface: *Surface) u32 {
+            pub inline fn getId(_surface: *Surface) u32 {
                 return @as(*server.wl.Resource, @ptrCast(_surface)).getId();
             }
-            pub fn getVersion(_surface: *Surface) u32 {
+            pub inline fn getVersion(_surface: *Surface) u32 {
                 return @as(*server.wl.Resource, @ptrCast(_surface)).getVersion();
             }
-            pub fn postNoMemory(_surface: *Surface) void {
+            pub inline fn postNoMemory(_surface: *Surface) void {
                 return @as(*server.wl.Resource, @ptrCast(_surface)).postNoMemory();
             }
-            pub fn getUserData(_surface: *Surface) ?*anyopaque {
+            pub inline fn getUserData(_surface: *Surface) ?*anyopaque {
                 return @as(*server.wl.Resource, @ptrCast(_surface)).getUserData();
             }
-            pub fn postError(_surface: *Surface, _err: Error, _message: [*:0]const u8) void {
+            pub inline fn postError(_surface: *Surface, _err: Error, _message: [*:0]const u8) void {
                 return @as(*server.wl.Resource, @ptrCast(_surface)).postError(@intCast(@intFromEnum(_err)), _message);
             }
             pub const Request = union(enum) {
@@ -3860,31 +3835,31 @@ pub const server = struct {
         pub const Region = opaque {
             pub const generated_version = 1;
             pub const interface = &common.wl.region.interface;
-            pub fn create(_client: *server.wl.Client, _version: u32, _id: u32) !*Region {
+            pub inline fn create(_client: *server.wl.Client, _version: u32, _id: u32) error{ResourceCreateFailed}!*Region {
                 return @ptrCast(try server.wl.Resource.create(_client, Region, _version, _id));
             }
-            pub fn destroy(_region: *Region) void {
+            pub inline fn destroy(_region: *Region) void {
                 return @as(*server.wl.Resource, @ptrCast(_region)).destroy();
             }
-            pub fn fromLink(_link: *server.wl.list.Link) *Region {
+            pub inline fn fromLink(_link: *server.wl.list.Link) *Region {
                 return @ptrCast(server.wl.Resource.fromLink(_link));
             }
-            pub fn getLink(_region: *Region) *server.wl.list.Link {
+            pub inline fn getLink(_region: *Region) *server.wl.list.Link {
                 return @as(*server.wl.Resource, @ptrCast(_region)).getLink();
             }
-            pub fn getClient(_region: *Region) *server.wl.Client {
+            pub inline fn getClient(_region: *Region) *server.wl.Client {
                 return @as(*server.wl.Resource, @ptrCast(_region)).getClient();
             }
-            pub fn getId(_region: *Region) u32 {
+            pub inline fn getId(_region: *Region) u32 {
                 return @as(*server.wl.Resource, @ptrCast(_region)).getId();
             }
-            pub fn getVersion(_region: *Region) u32 {
+            pub inline fn getVersion(_region: *Region) u32 {
                 return @as(*server.wl.Resource, @ptrCast(_region)).getVersion();
             }
-            pub fn postNoMemory(_region: *Region) void {
+            pub inline fn postNoMemory(_region: *Region) void {
                 return @as(*server.wl.Resource, @ptrCast(_region)).postNoMemory();
             }
-            pub fn getUserData(_region: *Region) ?*anyopaque {
+            pub inline fn getUserData(_region: *Region) ?*anyopaque {
                 return @as(*server.wl.Resource, @ptrCast(_region)).getUserData();
             }
             pub const Request = union(enum) {
@@ -3948,34 +3923,34 @@ pub const server = struct {
             pub const interface = &common.wl.shm.interface;
             pub const Error = common.wl.shm.Error;
             pub const Format = common.wl.shm.Format;
-            pub fn create(_client: *server.wl.Client, _version: u32, _id: u32) !*Shm {
+            pub inline fn create(_client: *server.wl.Client, _version: u32, _id: u32) error{ResourceCreateFailed}!*Shm {
                 return @ptrCast(try server.wl.Resource.create(_client, Shm, _version, _id));
             }
-            pub fn destroy(_shm: *Shm) void {
+            pub inline fn destroy(_shm: *Shm) void {
                 return @as(*server.wl.Resource, @ptrCast(_shm)).destroy();
             }
-            pub fn fromLink(_link: *server.wl.list.Link) *Shm {
+            pub inline fn fromLink(_link: *server.wl.list.Link) *Shm {
                 return @ptrCast(server.wl.Resource.fromLink(_link));
             }
-            pub fn getLink(_shm: *Shm) *server.wl.list.Link {
+            pub inline fn getLink(_shm: *Shm) *server.wl.list.Link {
                 return @as(*server.wl.Resource, @ptrCast(_shm)).getLink();
             }
-            pub fn getClient(_shm: *Shm) *server.wl.Client {
+            pub inline fn getClient(_shm: *Shm) *server.wl.Client {
                 return @as(*server.wl.Resource, @ptrCast(_shm)).getClient();
             }
-            pub fn getId(_shm: *Shm) u32 {
+            pub inline fn getId(_shm: *Shm) u32 {
                 return @as(*server.wl.Resource, @ptrCast(_shm)).getId();
             }
-            pub fn getVersion(_shm: *Shm) u32 {
+            pub inline fn getVersion(_shm: *Shm) u32 {
                 return @as(*server.wl.Resource, @ptrCast(_shm)).getVersion();
             }
-            pub fn postNoMemory(_shm: *Shm) void {
+            pub inline fn postNoMemory(_shm: *Shm) void {
                 return @as(*server.wl.Resource, @ptrCast(_shm)).postNoMemory();
             }
-            pub fn getUserData(_shm: *Shm) ?*anyopaque {
+            pub inline fn getUserData(_shm: *Shm) ?*anyopaque {
                 return @as(*server.wl.Resource, @ptrCast(_shm)).getUserData();
             }
-            pub fn postError(_shm: *Shm, _err: Error, _message: [*:0]const u8) void {
+            pub inline fn postError(_shm: *Shm, _err: Error, _message: [*:0]const u8) void {
                 return @as(*server.wl.Resource, @ptrCast(_shm)).postError(@intCast(@intFromEnum(_err)), _message);
             }
             pub const Request = union(enum) {
@@ -4041,31 +4016,31 @@ pub const server = struct {
         pub const ShmPool = opaque {
             pub const generated_version = 1;
             pub const interface = &common.wl.shm_pool.interface;
-            pub fn create(_client: *server.wl.Client, _version: u32, _id: u32) !*ShmPool {
+            pub inline fn create(_client: *server.wl.Client, _version: u32, _id: u32) error{ResourceCreateFailed}!*ShmPool {
                 return @ptrCast(try server.wl.Resource.create(_client, ShmPool, _version, _id));
             }
-            pub fn destroy(_shm_pool: *ShmPool) void {
+            pub inline fn destroy(_shm_pool: *ShmPool) void {
                 return @as(*server.wl.Resource, @ptrCast(_shm_pool)).destroy();
             }
-            pub fn fromLink(_link: *server.wl.list.Link) *ShmPool {
+            pub inline fn fromLink(_link: *server.wl.list.Link) *ShmPool {
                 return @ptrCast(server.wl.Resource.fromLink(_link));
             }
-            pub fn getLink(_shm_pool: *ShmPool) *server.wl.list.Link {
+            pub inline fn getLink(_shm_pool: *ShmPool) *server.wl.list.Link {
                 return @as(*server.wl.Resource, @ptrCast(_shm_pool)).getLink();
             }
-            pub fn getClient(_shm_pool: *ShmPool) *server.wl.Client {
+            pub inline fn getClient(_shm_pool: *ShmPool) *server.wl.Client {
                 return @as(*server.wl.Resource, @ptrCast(_shm_pool)).getClient();
             }
-            pub fn getId(_shm_pool: *ShmPool) u32 {
+            pub inline fn getId(_shm_pool: *ShmPool) u32 {
                 return @as(*server.wl.Resource, @ptrCast(_shm_pool)).getId();
             }
-            pub fn getVersion(_shm_pool: *ShmPool) u32 {
+            pub inline fn getVersion(_shm_pool: *ShmPool) u32 {
                 return @as(*server.wl.Resource, @ptrCast(_shm_pool)).getVersion();
             }
-            pub fn postNoMemory(_shm_pool: *ShmPool) void {
+            pub inline fn postNoMemory(_shm_pool: *ShmPool) void {
                 return @as(*server.wl.Resource, @ptrCast(_shm_pool)).postNoMemory();
             }
-            pub fn getUserData(_shm_pool: *ShmPool) ?*anyopaque {
+            pub inline fn getUserData(_shm_pool: *ShmPool) ?*anyopaque {
                 return @as(*server.wl.Resource, @ptrCast(_shm_pool)).getUserData();
             }
             pub const Request = union(enum) {
@@ -4146,34 +4121,34 @@ pub const server = struct {
             pub const interface = &common.wl.seat.interface;
             pub const Capability = common.wl.seat.Capability;
             pub const Error = common.wl.seat.Error;
-            pub fn create(_client: *server.wl.Client, _version: u32, _id: u32) !*Seat {
+            pub inline fn create(_client: *server.wl.Client, _version: u32, _id: u32) error{ResourceCreateFailed}!*Seat {
                 return @ptrCast(try server.wl.Resource.create(_client, Seat, _version, _id));
             }
-            pub fn destroy(_seat: *Seat) void {
+            pub inline fn destroy(_seat: *Seat) void {
                 return @as(*server.wl.Resource, @ptrCast(_seat)).destroy();
             }
-            pub fn fromLink(_link: *server.wl.list.Link) *Seat {
+            pub inline fn fromLink(_link: *server.wl.list.Link) *Seat {
                 return @ptrCast(server.wl.Resource.fromLink(_link));
             }
-            pub fn getLink(_seat: *Seat) *server.wl.list.Link {
+            pub inline fn getLink(_seat: *Seat) *server.wl.list.Link {
                 return @as(*server.wl.Resource, @ptrCast(_seat)).getLink();
             }
-            pub fn getClient(_seat: *Seat) *server.wl.Client {
+            pub inline fn getClient(_seat: *Seat) *server.wl.Client {
                 return @as(*server.wl.Resource, @ptrCast(_seat)).getClient();
             }
-            pub fn getId(_seat: *Seat) u32 {
+            pub inline fn getId(_seat: *Seat) u32 {
                 return @as(*server.wl.Resource, @ptrCast(_seat)).getId();
             }
-            pub fn getVersion(_seat: *Seat) u32 {
+            pub inline fn getVersion(_seat: *Seat) u32 {
                 return @as(*server.wl.Resource, @ptrCast(_seat)).getVersion();
             }
-            pub fn postNoMemory(_seat: *Seat) void {
+            pub inline fn postNoMemory(_seat: *Seat) void {
                 return @as(*server.wl.Resource, @ptrCast(_seat)).postNoMemory();
             }
-            pub fn getUserData(_seat: *Seat) ?*anyopaque {
+            pub inline fn getUserData(_seat: *Seat) ?*anyopaque {
                 return @as(*server.wl.Resource, @ptrCast(_seat)).getUserData();
             }
-            pub fn postError(_seat: *Seat, _err: Error, _message: [*:0]const u8) void {
+            pub inline fn postError(_seat: *Seat, _err: Error, _message: [*:0]const u8) void {
                 return @as(*server.wl.Resource, @ptrCast(_seat)).postError(@intCast(@intFromEnum(_err)), _message);
             }
             pub const Request = union(enum) {
@@ -4324,34 +4299,34 @@ pub const server = struct {
             pub const Axis = common.wl.pointer.Axis;
             pub const AxisSource = common.wl.pointer.AxisSource;
             pub const AxisRelativeDirection = common.wl.pointer.AxisRelativeDirection;
-            pub fn create(_client: *server.wl.Client, _version: u32, _id: u32) !*Pointer {
+            pub inline fn create(_client: *server.wl.Client, _version: u32, _id: u32) error{ResourceCreateFailed}!*Pointer {
                 return @ptrCast(try server.wl.Resource.create(_client, Pointer, _version, _id));
             }
-            pub fn destroy(_pointer: *Pointer) void {
+            pub inline fn destroy(_pointer: *Pointer) void {
                 return @as(*server.wl.Resource, @ptrCast(_pointer)).destroy();
             }
-            pub fn fromLink(_link: *server.wl.list.Link) *Pointer {
+            pub inline fn fromLink(_link: *server.wl.list.Link) *Pointer {
                 return @ptrCast(server.wl.Resource.fromLink(_link));
             }
-            pub fn getLink(_pointer: *Pointer) *server.wl.list.Link {
+            pub inline fn getLink(_pointer: *Pointer) *server.wl.list.Link {
                 return @as(*server.wl.Resource, @ptrCast(_pointer)).getLink();
             }
-            pub fn getClient(_pointer: *Pointer) *server.wl.Client {
+            pub inline fn getClient(_pointer: *Pointer) *server.wl.Client {
                 return @as(*server.wl.Resource, @ptrCast(_pointer)).getClient();
             }
-            pub fn getId(_pointer: *Pointer) u32 {
+            pub inline fn getId(_pointer: *Pointer) u32 {
                 return @as(*server.wl.Resource, @ptrCast(_pointer)).getId();
             }
-            pub fn getVersion(_pointer: *Pointer) u32 {
+            pub inline fn getVersion(_pointer: *Pointer) u32 {
                 return @as(*server.wl.Resource, @ptrCast(_pointer)).getVersion();
             }
-            pub fn postNoMemory(_pointer: *Pointer) void {
+            pub inline fn postNoMemory(_pointer: *Pointer) void {
                 return @as(*server.wl.Resource, @ptrCast(_pointer)).postNoMemory();
             }
-            pub fn getUserData(_pointer: *Pointer) ?*anyopaque {
+            pub inline fn getUserData(_pointer: *Pointer) ?*anyopaque {
                 return @as(*server.wl.Resource, @ptrCast(_pointer)).getUserData();
             }
-            pub fn postError(_pointer: *Pointer, _err: Error, _message: [*:0]const u8) void {
+            pub inline fn postError(_pointer: *Pointer, _err: Error, _message: [*:0]const u8) void {
                 return @as(*server.wl.Resource, @ptrCast(_pointer)).postError(@intCast(@intFromEnum(_err)), _message);
             }
             pub const Request = union(enum) {
@@ -4703,31 +4678,31 @@ pub const server = struct {
             pub const interface = &common.wl.keyboard.interface;
             pub const KeymapFormat = common.wl.keyboard.KeymapFormat;
             pub const KeyState = common.wl.keyboard.KeyState;
-            pub fn create(_client: *server.wl.Client, _version: u32, _id: u32) !*Keyboard {
+            pub inline fn create(_client: *server.wl.Client, _version: u32, _id: u32) error{ResourceCreateFailed}!*Keyboard {
                 return @ptrCast(try server.wl.Resource.create(_client, Keyboard, _version, _id));
             }
-            pub fn destroy(_keyboard: *Keyboard) void {
+            pub inline fn destroy(_keyboard: *Keyboard) void {
                 return @as(*server.wl.Resource, @ptrCast(_keyboard)).destroy();
             }
-            pub fn fromLink(_link: *server.wl.list.Link) *Keyboard {
+            pub inline fn fromLink(_link: *server.wl.list.Link) *Keyboard {
                 return @ptrCast(server.wl.Resource.fromLink(_link));
             }
-            pub fn getLink(_keyboard: *Keyboard) *server.wl.list.Link {
+            pub inline fn getLink(_keyboard: *Keyboard) *server.wl.list.Link {
                 return @as(*server.wl.Resource, @ptrCast(_keyboard)).getLink();
             }
-            pub fn getClient(_keyboard: *Keyboard) *server.wl.Client {
+            pub inline fn getClient(_keyboard: *Keyboard) *server.wl.Client {
                 return @as(*server.wl.Resource, @ptrCast(_keyboard)).getClient();
             }
-            pub fn getId(_keyboard: *Keyboard) u32 {
+            pub inline fn getId(_keyboard: *Keyboard) u32 {
                 return @as(*server.wl.Resource, @ptrCast(_keyboard)).getId();
             }
-            pub fn getVersion(_keyboard: *Keyboard) u32 {
+            pub inline fn getVersion(_keyboard: *Keyboard) u32 {
                 return @as(*server.wl.Resource, @ptrCast(_keyboard)).getVersion();
             }
-            pub fn postNoMemory(_keyboard: *Keyboard) void {
+            pub inline fn postNoMemory(_keyboard: *Keyboard) void {
                 return @as(*server.wl.Resource, @ptrCast(_keyboard)).postNoMemory();
             }
-            pub fn getUserData(_keyboard: *Keyboard) ?*anyopaque {
+            pub inline fn getUserData(_keyboard: *Keyboard) ?*anyopaque {
                 return @as(*server.wl.Resource, @ptrCast(_keyboard)).getUserData();
             }
             pub const Request = union(enum) {
@@ -4920,31 +4895,31 @@ pub const server = struct {
         pub const Touch = opaque {
             pub const generated_version = 5;
             pub const interface = &common.wl.touch.interface;
-            pub fn create(_client: *server.wl.Client, _version: u32, _id: u32) !*Touch {
+            pub inline fn create(_client: *server.wl.Client, _version: u32, _id: u32) error{ResourceCreateFailed}!*Touch {
                 return @ptrCast(try server.wl.Resource.create(_client, Touch, _version, _id));
             }
-            pub fn destroy(_touch: *Touch) void {
+            pub inline fn destroy(_touch: *Touch) void {
                 return @as(*server.wl.Resource, @ptrCast(_touch)).destroy();
             }
-            pub fn fromLink(_link: *server.wl.list.Link) *Touch {
+            pub inline fn fromLink(_link: *server.wl.list.Link) *Touch {
                 return @ptrCast(server.wl.Resource.fromLink(_link));
             }
-            pub fn getLink(_touch: *Touch) *server.wl.list.Link {
+            pub inline fn getLink(_touch: *Touch) *server.wl.list.Link {
                 return @as(*server.wl.Resource, @ptrCast(_touch)).getLink();
             }
-            pub fn getClient(_touch: *Touch) *server.wl.Client {
+            pub inline fn getClient(_touch: *Touch) *server.wl.Client {
                 return @as(*server.wl.Resource, @ptrCast(_touch)).getClient();
             }
-            pub fn getId(_touch: *Touch) u32 {
+            pub inline fn getId(_touch: *Touch) u32 {
                 return @as(*server.wl.Resource, @ptrCast(_touch)).getId();
             }
-            pub fn getVersion(_touch: *Touch) u32 {
+            pub inline fn getVersion(_touch: *Touch) u32 {
                 return @as(*server.wl.Resource, @ptrCast(_touch)).getVersion();
             }
-            pub fn postNoMemory(_touch: *Touch) void {
+            pub inline fn postNoMemory(_touch: *Touch) void {
                 return @as(*server.wl.Resource, @ptrCast(_touch)).postNoMemory();
             }
-            pub fn getUserData(_touch: *Touch) ?*anyopaque {
+            pub inline fn getUserData(_touch: *Touch) ?*anyopaque {
                 return @as(*server.wl.Resource, @ptrCast(_touch)).getUserData();
             }
             pub const Request = union(enum) {
@@ -5059,31 +5034,31 @@ pub const server = struct {
             pub const Subpixel = common.wl.output.Subpixel;
             pub const Transform = common.wl.output.Transform;
             pub const Mode = common.wl.output.Mode;
-            pub fn create(_client: *server.wl.Client, _version: u32, _id: u32) !*Output {
+            pub inline fn create(_client: *server.wl.Client, _version: u32, _id: u32) error{ResourceCreateFailed}!*Output {
                 return @ptrCast(try server.wl.Resource.create(_client, Output, _version, _id));
             }
-            pub fn destroy(_output: *Output) void {
+            pub inline fn destroy(_output: *Output) void {
                 return @as(*server.wl.Resource, @ptrCast(_output)).destroy();
             }
-            pub fn fromLink(_link: *server.wl.list.Link) *Output {
+            pub inline fn fromLink(_link: *server.wl.list.Link) *Output {
                 return @ptrCast(server.wl.Resource.fromLink(_link));
             }
-            pub fn getLink(_output: *Output) *server.wl.list.Link {
+            pub inline fn getLink(_output: *Output) *server.wl.list.Link {
                 return @as(*server.wl.Resource, @ptrCast(_output)).getLink();
             }
-            pub fn getClient(_output: *Output) *server.wl.Client {
+            pub inline fn getClient(_output: *Output) *server.wl.Client {
                 return @as(*server.wl.Resource, @ptrCast(_output)).getClient();
             }
-            pub fn getId(_output: *Output) u32 {
+            pub inline fn getId(_output: *Output) u32 {
                 return @as(*server.wl.Resource, @ptrCast(_output)).getId();
             }
-            pub fn getVersion(_output: *Output) u32 {
+            pub inline fn getVersion(_output: *Output) u32 {
                 return @as(*server.wl.Resource, @ptrCast(_output)).getVersion();
             }
-            pub fn postNoMemory(_output: *Output) void {
+            pub inline fn postNoMemory(_output: *Output) void {
                 return @as(*server.wl.Resource, @ptrCast(_output)).postNoMemory();
             }
-            pub fn getUserData(_output: *Output) ?*anyopaque {
+            pub inline fn getUserData(_output: *Output) ?*anyopaque {
                 return @as(*server.wl.Resource, @ptrCast(_output)).getUserData();
             }
             pub const Request = union(enum) {
@@ -7374,5 +7349,206 @@ const common = struct {
                 .events = null,
             };
         };
+    };
+};
+const ffi = struct {
+    const Argument = common.Argument;
+    const Interface = common.Interface;
+    const list = common.list;
+
+    pub const client = struct {
+        const wl = wayland.client.wl;
+
+        extern fn wl_display_cancel_read(display: *wl.Display) void;
+        extern fn wl_display_connect_to_fd(fd: c_int) ?*wl.Display;
+        extern fn wl_display_connect(name: ?[*:0]const u8) ?*wl.Display;
+        extern fn wl_display_create_queue(display: *wl.Display) ?*wl.EventQueue;
+        extern fn wl_display_disconnect(display: *wl.Display) void;
+        extern fn wl_display_dispatch_pending(display: *wl.Display) c_int;
+        extern fn wl_display_dispatch_queue_pending(display: *wl.Display, queue: *wl.EventQueue) c_int;
+        extern fn wl_display_dispatch_queue(display: *wl.Display, queue: *wl.EventQueue) c_int;
+        extern fn wl_display_dispatch(display: *wl.Display) c_int;
+        extern fn wl_display_flush(display: *wl.Display) c_int;
+        extern fn wl_display_get_error(display: *wl.Display) c_int;
+        extern fn wl_display_get_fd(display: *wl.Display) c_int;
+        extern fn wl_display_prepare_read_queue(display: *wl.Display, queue: *wl.EventQueue) c_int;
+        extern fn wl_display_prepare_read(display: *wl.Display) c_int;
+        extern fn wl_display_read_events(display: *wl.Display) c_int;
+        extern fn wl_display_roundtrip_queue(display: *wl.Display, queue: *wl.EventQueue) c_int;
+        extern fn wl_display_roundtrip(display: *wl.Display) c_int;
+        extern fn wl_event_queue_destroy(queue: *wl.EventQueue) void;
+        extern fn wl_proxy_add_dispatcher(
+            proxy: *wl.Proxy,
+            dispatcher: *const wl.Proxy.DispatcherFn,
+            implementation: ?*const anyopaque,
+            data: ?*anyopaque,
+        ) c_int;
+        extern fn wl_proxy_create(factory: *wl.Proxy, interface: *const Interface) ?*wl.Proxy;
+        extern fn wl_proxy_destroy(proxy: *wl.Proxy) void;
+        extern fn wl_proxy_get_id(proxy: *wl.Proxy) u32;
+        extern fn wl_proxy_get_user_data(proxy: *wl.Proxy) ?*anyopaque;
+        extern fn wl_proxy_get_version(proxy: *wl.Proxy) u32;
+        extern fn wl_proxy_marshal_array_constructor_versioned(
+            proxy: *wl.Proxy,
+            opcode: u32,
+            args: [*]Argument,
+            interface: *const Interface,
+            version: u32,
+        ) ?*wl.Proxy;
+        extern fn wl_proxy_marshal_array_constructor(
+            proxy: *wl.Proxy,
+            opcode: u32,
+            args: [*]Argument,
+            interface: *const Interface,
+        ) ?*wl.Proxy;
+        extern fn wl_proxy_marshal_array(proxy: *wl.Proxy, opcode: u32, args: ?[*]Argument) void;
+        extern fn wl_proxy_set_queue(proxy: *wl.Proxy, queue: *wl.EventQueue) void;
+    };
+
+    pub const cursor = struct {
+        const wl = wayland.client.wl;
+
+        extern fn wl_cursor_frame(cursor: *wl.Cursor, time: u32) c_int;
+        extern fn wl_cursor_frame_and_duration(cursor: *wl.Cursor, time: u32, duration: *u32) c_int;
+        extern fn wl_cursor_image_get_buffer(image: *wl.CursorImage) ?*wl.Buffer;
+        extern fn wl_cursor_theme_load(name: ?[*:0]const u8, size: c_int, shm: *wl.Shm) ?*wl.CursorTheme;
+        extern fn wl_cursor_theme_destroy(wl_cursor_theme: *wl.CursorTheme) void;
+        extern fn wl_cursor_theme_get_cursor(theme: *wl.CursorTheme, name: [*:0]const u8) ?*wl.Cursor;
+    };
+
+    pub const egl = struct {
+        const wl = wayland.client.wl;
+
+        extern fn wl_egl_window_create(surface: *wl.Surface, width: c_int, height: c_int) ?*wl.EglWindow;
+        extern fn wl_egl_window_destroy(egl_window: *wl.EglWindow) void;
+        extern fn wl_egl_window_resize(egl_window: *wl.EglWindow, width: c_int, height: c_int, dx: c_int, dy: c_int) void;
+        extern fn wl_egl_window_get_attached_size(egl_window: *wl.EglWindow, width: *c_int, height: *c_int) void;
+    };
+
+    pub const server = struct {
+        const wl = wayland.server.wl;
+
+        extern fn wl_display_create() ?*wl.Server;
+        extern fn wl_display_destroy(_server: *wl.Server) void;
+        extern fn wl_display_get_event_loop(_server: *wl.Server) *wl.EventLoop;
+        extern fn wl_display_add_socket(_server: *wl.Server, name: [*:0]const u8) c_int;
+        extern fn wl_display_add_socket_fd(_server: *wl.Server, sock_fd: c_int) c_int;
+        extern fn wl_display_terminate(_server: *wl.Server) void;
+        extern fn wl_display_run(_server: *wl.Server) void;
+        extern fn wl_display_flush_clients(_server: *wl.Server) void;
+        extern fn wl_display_destroy_clients(_server: *wl.Server) void;
+        extern fn wl_display_get_serial(_server: *wl.Server) u32;
+        extern fn wl_display_next_serial(_server: *wl.Server) u32;
+        extern fn wl_display_add_destroy_listener(_server: *wl.Server, listener: *wl.Listener(*wl.Server)) void;
+        extern fn wl_display_add_client_created_listener(_server: *wl.Server, listener: *wl.Listener(*wl.Client)) void;
+        extern fn wl_display_set_global_filter(
+            server: *wl.Server,
+            filter: *const fn (_client: *const wl.Client, global: *const wl.Global, data: ?*anyopaque) callconv(.c) bool,
+            data: ?*anyopaque,
+        ) void;
+        extern fn wl_display_get_client_list(_server: *wl.Server) *list.Head(wl.Client, null);
+        extern fn wl_display_init_shm(_server: *wl.Server) c_int;
+        extern fn wl_display_add_shm_format(_server: *wl.Server, format: u32) ?*u32;
+        extern fn wl_display_add_protocol_logger(
+            _server: *wl.Server,
+            func: *const fn (data: ?*anyopaque, direction: wl.ProtocolLogger.Type, message: *const wl.ProtocolLogger.LogMessage) callconv(.c) void,
+            data: ?*anyopaque,
+        ) void;
+        extern fn wl_client_create(_server: *wl.Server, fd: c_int) ?*wl.Client;
+        extern fn wl_client_destroy(_client: *wl.Client) void;
+        extern fn wl_client_flush(_client: *wl.Client) void;
+        extern fn wl_client_get_link(_client: *wl.Client) *list.Link;
+        extern fn wl_client_from_link(link: *list.Link) *wl.Client;
+        extern fn wl_client_get_credentials(_client: *wl.Client, pid: *posix.pid_t, uid: *posix.uid_t, gid: *posix.gid_t) void;
+        extern fn wl_client_add_destroy_listener(_client: *wl.Client, listener: *wl.Listener(*wl.Client)) void;
+        extern fn wl_client_get_object(_client: *wl.Client, id: u32) ?*wl.Resource;
+        extern fn wl_client_post_no_memory(_client: *wl.Client) void;
+        extern fn wl_client_post_implementation_error(_client: *wl.Client, msg: [*:0]const u8, ...) void;
+        extern fn wl_client_add_resource_created_listener(_client: *wl.Client, listener: *wl.Listener(*wl.Resource)) void;
+        extern fn wl_client_for_each_resource(
+            _client: *wl.Client,
+            iterator: *const fn (resource: *wl.Resource, data: ?*anyopaque) callconv(.c) wl.IteratorResult,
+            data: ?*anyopaque,
+        ) void;
+        extern fn wl_client_get_fd(_client: *wl.Client) c_int;
+        extern fn wl_client_get_display(_client: *wl.Client) *wl.Server;
+        extern fn wl_global_create(
+            _server: *wl.Server,
+            interface: *const Interface,
+            version: c_int,
+            data: ?*anyopaque,
+            bind: *const fn (_client: *wl.Client, data: ?*anyopaque, version: u32, id: u32) callconv(.c) void,
+        ) ?*wl.Global;
+        extern fn wl_global_remove(global: *wl.Global) void;
+        extern fn wl_global_destroy(global: *wl.Global) void;
+        extern fn wl_global_get_interface(global: *const wl.Global) *const Interface;
+        extern fn wl_global_get_name(global: *const wl.Global, _client: *const wl.Client) u32;
+        extern fn wl_global_get_user_data(global: *const wl.Global) ?*anyopaque;
+        extern fn wl_resource_create(_client: *wl.Client, interface: *const Interface, version: c_int, id: u32) ?*wl.Resource;
+        extern fn wl_resource_destroy(resource: *wl.Resource) void;
+        extern fn wl_resource_post_event_array(resource: *wl.Resource, opcode: u32, args: ?[*]Argument) void;
+        extern fn wl_resource_queue_event_array(resource: *wl.Resource, opcode: u32, args: ?[*]Argument) void;
+        extern fn wl_resource_post_error(resource: *wl.Resource, code: u32, message: [*:0]const u8, ...) void;
+        extern fn wl_resource_post_no_memory(resource: *wl.Resource) void;
+        extern fn wl_resource_set_dispatcher(
+            resource: *wl.Resource,
+            dispatcher: ?*const wl.Resource.DispatcherFn,
+            implementation: ?*const anyopaque,
+            data: ?*anyopaque,
+            destroy_fn: ?*const wl.Resource.DestroyFn,
+        ) void;
+        extern fn wl_resource_get_user_data(resource: *wl.Resource) ?*anyopaque;
+        extern fn wl_resource_get_id(resource: *wl.Resource) u32;
+        extern fn wl_resource_get_link(resource: *wl.Resource) *list.Link;
+        extern fn wl_resource_from_link(link: *list.Link) *wl.Resource;
+        extern fn wl_resource_find_for_client(_list: *list.Head(wl.Resource, null), _client: *wl.Client) ?*wl.Resource;
+        extern fn wl_resource_get_client(resource: *wl.Resource) *wl.Client;
+        extern fn wl_resource_get_version(resource: *wl.Resource) c_int;
+        extern fn wl_resource_get_class(resource: *wl.Resource) [*:0]const u8;
+        extern fn wl_resource_add_destroy_listener(resource: *wl.Resource, listener: *wl.Listener(*wl.Resource)) void;
+        extern fn wl_protocol_logger_destroy(logger: *wl.ProtocolLogger) void;
+        extern fn wl_event_loop_create() ?*wl.EventLoop;
+        extern fn wl_event_loop_destroy(loop: *wl.EventLoop) void;
+        extern fn wl_event_loop_add_fd(
+            loop: *wl.EventLoop,
+            fd: c_int,
+            mask: u32,
+            func: *const fn (fd: c_int, mask: u32, data: ?*anyopaque) callconv(.c) c_int,
+            data: ?*anyopaque,
+        ) ?*wl.EventSource;
+        extern fn wl_event_loop_add_timer(
+            loop: *wl.EventLoop,
+            func: *const fn (data: ?*anyopaque) callconv(.c) c_int,
+            data: ?*anyopaque,
+        ) ?*wl.EventSource;
+        extern fn wl_event_loop_add_signal(
+            loop: *wl.EventLoop,
+            signal_number: c_int,
+            func: *const fn (c_int, ?*anyopaque) callconv(.c) c_int,
+            data: ?*anyopaque,
+        ) ?*wl.EventSource;
+        extern fn wl_event_loop_add_idle(
+            loop: *wl.EventLoop,
+            func: *const fn (data: ?*anyopaque) callconv(.c) void,
+            data: ?*anyopaque,
+        ) ?*wl.EventSource;
+        extern fn wl_event_loop_dispatch(loop: *wl.EventLoop, timeout: c_int) c_int;
+        extern fn wl_event_loop_dispatch_idle(loop: *wl.EventLoop) void;
+        extern fn wl_event_loop_get_fd(loop: *wl.EventLoop) c_int;
+        extern fn wl_event_loop_add_destroy_listener(loop: *wl.EventLoop, listener: *wl.Listener(*wl.EventLoop)) void;
+        extern fn wl_event_source_remove(source: *wl.EventSource) c_int;
+        extern fn wl_event_source_check(source: *wl.EventSource) void;
+        extern fn wl_event_source_fd_update(source: *wl.EventSource, mask: u32) c_int;
+        extern fn wl_event_source_timer_update(source: *wl.EventSource, ms_delay: c_int) c_int;
+        extern fn wl_shm_buffer_get(resource: *wl.Resource) ?*wl.shm.Buffer;
+        extern fn wl_shm_buffer_begin_access(buffer: *wl.shm.Buffer) void;
+        extern fn wl_shm_buffer_end_access(buffer: *wl.shm.Buffer) void;
+        extern fn wl_shm_buffer_get_data(buffer: *wl.shm.Buffer) ?*anyopaque;
+        extern fn wl_shm_buffer_get_format(buffer: *wl.shm.Buffer) u32;
+        extern fn wl_shm_buffer_get_height(buffer: *wl.shm.Buffer) i32;
+        extern fn wl_shm_buffer_get_width(buffer: *wl.shm.Buffer) i32;
+        extern fn wl_shm_buffer_get_stride(buffer: *wl.shm.Buffer) i32;
+        extern fn wl_shm_buffer_ref_pool(buffer: *wl.shm.Buffer) *wl.Pool;
+        extern fn wl_shm_pool_unref(pool: *wl.Pool) void;
     };
 };

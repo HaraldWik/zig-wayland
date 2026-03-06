@@ -93,6 +93,12 @@ pub const Scanner = struct {
     wayland_protocols: Build.LazyPath,
 
     pub const Options = struct {
+        /// Set this to a module name to skip generating extern function definitions, and import a module with the
+        /// given name instead. The module must provide the libwayland functions referenced via zig-wayland.
+        /// With this mechanism, the user could choose to load them with dlopen() at runtime, for example.
+        /// See src/ffi.zig for the libwayland function signatures.
+        /// If null, zig-wayland will emit extern function declarations in the generated code.
+        ffi_import: ?[]const u8 = null,
         /// Path to the wayland.xml file.
         /// If null, the output of `pkg-config --variable=pkgdatadir wayland-scanner` will be used.
         wayland_xml: ?Build.LazyPath = null,
@@ -137,6 +143,11 @@ pub const Scanner = struct {
 
         run.addArg("-i");
         run.addFileArg(wayland_xml);
+
+        if (options.ffi_import) |import| {
+            run.addArg("-f");
+            run.addArg(import);
+        }
 
         const scanner = b.allocator.create(Scanner) catch @panic("OOM");
         scanner.* = .{

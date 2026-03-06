@@ -7,124 +7,114 @@ pub const Fixed = common.Fixed;
 pub const Argument = common.Argument;
 
 pub const Proxy = opaque {
-    extern fn wl_proxy_create(factory: *Proxy, interface: *const Interface) ?*Proxy;
-    pub fn create(factory: *Proxy, interface: *const Interface) error{OutOfMemory}!*Proxy {
-        return wl_proxy_create(factory, interface) orelse error.OutOfMemory;
+    pub inline fn create(factory: *Proxy, interface: *const Interface) error{OutOfMemory}!*Proxy {
+        return ffi.client.wl_proxy_create(factory, interface) orelse error.OutOfMemory;
     }
 
-    extern fn wl_proxy_destroy(proxy: *Proxy) void;
-    pub const destroy = wl_proxy_destroy;
+    pub inline fn destroy(proxy: *Proxy) void {
+        ffi.client.wl_proxy_destroy(proxy);
+    }
 
-    extern fn wl_proxy_marshal_array(proxy: *Proxy, opcode: u32, args: ?[*]Argument) void;
-    pub const marshal = wl_proxy_marshal_array;
+    pub inline fn marshal(proxy: *Proxy, opcode: u32, args: ?[*]Argument) void {
+        ffi.client.wl_proxy_marshal_array(proxy, opcode, args);
+    }
 
-    extern fn wl_proxy_marshal_array_constructor(
-        proxy: *Proxy,
-        opcode: u32,
-        args: [*]Argument,
-        interface: *const Interface,
-    ) ?*Proxy;
-    pub fn marshalConstructor(
+    pub inline fn marshalConstructor(
         proxy: *Proxy,
         opcode: u32,
         args: [*]Argument,
         interface: *const Interface,
     ) error{OutOfMemory}!*Proxy {
-        return wl_proxy_marshal_array_constructor(proxy, opcode, args, interface) orelse
+        return ffi.client.wl_proxy_marshal_array_constructor(proxy, opcode, args, interface) orelse
             error.OutOfMemory;
     }
 
-    extern fn wl_proxy_marshal_array_constructor_versioned(
-        proxy: *Proxy,
-        opcode: u32,
-        args: [*]Argument,
-        interface: *const Interface,
-        version: u32,
-    ) ?*Proxy;
-    pub fn marshalConstructorVersioned(
+    pub inline fn marshalConstructorVersioned(
         proxy: *Proxy,
         opcode: u32,
         args: [*]Argument,
         interface: *const Interface,
         version: u32,
     ) error{OutOfMemory}!*Proxy {
-        return wl_proxy_marshal_array_constructor_versioned(proxy, opcode, args, interface, version) orelse
+        return ffi.client.wl_proxy_marshal_array_constructor_versioned(proxy, opcode, args, interface, version) orelse
             error.OutOfMemory;
     }
 
-    const DispatcherFn = fn (
+    pub const DispatcherFn = fn (
         implementation: ?*const anyopaque,
         proxy: *Proxy,
         opcode: u32,
         message: *const Message,
         args: [*]Argument,
     ) callconv(.c) c_int;
-    extern fn wl_proxy_add_dispatcher(
-        proxy: *Proxy,
-        dispatcher: *const DispatcherFn,
-        implementation: ?*const anyopaque,
-        data: ?*anyopaque,
-    ) c_int;
-    pub fn addDispatcher(
+    pub inline fn addDispatcher(
         proxy: *Proxy,
         dispatcher: *const DispatcherFn,
         implementation: ?*const anyopaque,
         data: ?*anyopaque,
     ) void {
-        const ret = wl_proxy_add_dispatcher(proxy, dispatcher, implementation, data);
+        const ret = ffi.client.wl_proxy_add_dispatcher(proxy, dispatcher, implementation, data);
         // Since there is no way to remove listeners, adding a listener to
         // the same proxy twice is always a bug, so assert instead of returning
         // an error.
         assert(ret != -1); // If this fails, a listener was already added
     }
 
-    extern fn wl_proxy_get_user_data(proxy: *Proxy) ?*anyopaque;
-    pub const getUserData = wl_proxy_get_user_data;
+    pub inline fn getUserData(proxy: *Proxy) ?*anyopaque {
+        return ffi.client.wl_proxy_get_user_data(proxy);
+    }
 
-    extern fn wl_proxy_get_version(proxy: *Proxy) u32;
-    pub const getVersion = wl_proxy_get_version;
+    pub inline fn getVersion(proxy: *Proxy) u32 {
+        return ffi.client.wl_proxy_get_version(proxy);
+    }
 
-    extern fn wl_proxy_get_id(proxy: *Proxy) u32;
-    pub const getId = wl_proxy_get_id;
+    pub inline fn getId(proxy: *Proxy) u32 {
+        return ffi.client.wl_proxy_get_id(proxy);
+    }
 
-    extern fn wl_proxy_set_queue(proxy: *Proxy, queue: *EventQueue) void;
-    pub const setQueue = wl_proxy_set_queue;
+    pub inline fn setQueue(proxy: *Proxy, queue: *EventQueue) void {
+        ffi.client.wl_proxy_set_queue(proxy, queue);
+    }
 };
 
 pub const EventQueue = opaque {
-    extern fn wl_event_queue_destroy(queue: *EventQueue) void;
-    pub const destroy = wl_event_queue_destroy;
+    pub inline fn destroy(queue: *EventQueue) void {
+        ffi.client.wl_event_queue_destroy(queue);
+    }
 };
 
 pub const EglWindow = opaque {
-    extern fn wl_egl_window_create(surface: *client.wl.Surface, width: c_int, height: c_int) ?*EglWindow;
-    pub fn create(surface: *client.wl.Surface, width: c_int, height: c_int) !*EglWindow {
+    pub inline fn create(surface: *client.wl.Surface, width: c_int, height: c_int) error{OutOfMemory}!*EglWindow {
         // Why do people use int when they require a positive number?
         assert(width > 0 and height > 0);
-        return wl_egl_window_create(surface, width, height) orelse error.OutOfMemory;
+        return ffi.egl.wl_egl_window_create(surface, width, height) orelse error.OutOfMemory;
     }
 
-    extern fn wl_egl_window_destroy(egl_window: *EglWindow) void;
-    pub const destroy = wl_egl_window_destroy;
+    pub inline fn destroy(egl_window: *EglWindow) void {
+        ffi.egl.wl_egl_window_destroy(egl_window);
+    }
 
-    extern fn wl_egl_window_resize(egl_window: *EglWindow, width: c_int, height: c_int, dx: c_int, dy: c_int) void;
-    pub const resize = wl_egl_window_resize;
+    pub inline fn resize(egl_window: *EglWindow, width: c_int, height: c_int, dx: c_int, dy: c_int) void {
+        ffi.egl.wl_egl_window_resize(egl_window, width, height, dx, dy);
+    }
 
-    extern fn wl_egl_window_get_attached_size(egl_window: *EglWindow, width: *c_int, height: *c_int) void;
-    pub const getAttachedSize = wl_egl_window_get_attached_size;
+    pub inline fn getAttachedSize(egl_window: *EglWindow, width: *c_int, height: *c_int) void {
+        ffi.egl.wl_egl_window_get_attached_size(egl_window, width, height);
+    }
 };
 
 pub const CursorTheme = opaque {
-    extern fn wl_cursor_theme_load(name: ?[*:0]const u8, size: c_int, shm: *client.wl.Shm) ?*CursorTheme;
-    pub fn load(name: ?[*:0]const u8, size: i32, shm: *client.wl.Shm) error{LoadThemeFailed}!*CursorTheme {
-        return wl_cursor_theme_load(name, @intCast(size), shm) orelse error.LoadThemeFailed;
+    pub inline fn load(name: ?[*:0]const u8, size: i32, shm: *client.wl.Shm) error{LoadThemeFailed}!*CursorTheme {
+        return ffi.cursor.wl_cursor_theme_load(name, @intCast(size), shm) orelse error.LoadThemeFailed;
     }
 
-    extern fn wl_cursor_theme_destroy(wl_cursor_theme: *CursorTheme) void;
-    pub const destroy = wl_cursor_theme_destroy;
+    pub inline fn destroy(wl_cursor_theme: *CursorTheme) void {
+        ffi.cursor.wl_cursor_theme_destroy(wl_cursor_theme);
+    }
 
-    extern fn wl_cursor_theme_get_cursor(theme: *CursorTheme, name: [*:0]const u8) ?*Cursor;
-    pub const getCursor = wl_cursor_theme_get_cursor;
+    pub inline fn getCursor(theme: *CursorTheme, name: [*:0]const u8) ?*Cursor {
+        return ffi.cursor.wl_cursor_theme_get_cursor(theme, name);
+    }
 };
 
 pub const Cursor = extern struct {
@@ -132,11 +122,13 @@ pub const Cursor = extern struct {
     images: [*]*CursorImage,
     name: [*:0]u8,
 
-    extern fn wl_cursor_frame(cursor: *Cursor, time: u32) c_int;
-    pub const frame = wl_cursor_frame;
+    pub inline fn frame(cursor: *Cursor, time: u32) c_int {
+        return ffi.cursor.wl_cursor_frame(cursor, time);
+    }
 
-    extern fn wl_cursor_frame_and_duration(cursor: *Cursor, time: u32, duration: *u32) c_int;
-    pub const frameAndDuration = wl_cursor_frame_and_duration;
+    pub inline fn frameAndDuration(cursor: *Cursor, time: u32, duration: *u32) c_int {
+        return ffi.cursor.wl_cursor_frame_and_duration(cursor, time, duration);
+    }
 };
 
 pub const CursorImage = extern struct {
@@ -146,8 +138,7 @@ pub const CursorImage = extern struct {
     hotspot_y: u32,
     delay: u32,
 
-    extern fn wl_cursor_image_get_buffer(image: *CursorImage) ?*client.wl.Buffer;
-    pub fn getBuffer(image: *CursorImage) error{OutOfMemory}!*client.wl.Buffer {
-        return wl_cursor_image_get_buffer(image) orelse error.OutOfMemory;
+    pub inline fn getBuffer(image: *CursorImage) error{OutOfMemory}!*client.wl.Buffer {
+        return ffi.cursor.wl_cursor_image_get_buffer(image) orelse error.OutOfMemory;
     }
 };
