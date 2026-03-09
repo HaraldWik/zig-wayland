@@ -713,7 +713,9 @@ const Interface = struct {
                 });
 
             const has_error = for (interface.enums) |e| {
-                if (mem.eql(u8, e.name, "error")) break true;
+                if (mem.eql(u8, e.name, "error") and e.since <= target_version) {
+                    break true;
+                }
             } else false;
             if (has_error) {
                 try writer.print(
