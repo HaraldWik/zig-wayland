@@ -30,8 +30,8 @@ pub fn build(b: *Build) !void {
     });
 
     exe.root_module.addImport("wayland", wayland);
-    exe.linkLibC();
-    exe.linkSystemLibrary("wayland-client");
+    exe.root_module.link_libc = true;
+    exe.root_module.linkSystemLibrary("wayland-client", .{});
 
     b.installArtifact(exe);
 }

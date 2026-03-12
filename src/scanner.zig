@@ -3,7 +3,6 @@ const assert = std.debug.assert;
 const posix = std.posix;
 const fs = std.fs;
 const fmt = std.fmt;
-const io = std.io;
 const mem = std.mem;
 const fmtId = std.zig.fmtId;
 
@@ -25,7 +24,9 @@ pub const Target = struct {
     version: u32,
 };
 
-pub fn main() !void {
+pub fn main(init: std.process.Init) !void {
+    const io = init.io;
+
     defer assert(general_purpose_allocator.deinit() == .ok);
 
     var protocols: std.ArrayList([]const u8) = .empty;
@@ -37,7 +38,7 @@ pub fn main() !void {
     var ffi_import: ?[]const u8 = null;
     var out_path_opt: ?[]const u8 = null;
 
-    var args = std.process.args();
+    var args = init.minimal.args.iterate();
 
     while (args.next()) |arg| {
         if (mem.eql(u8, arg, "-i")) {
@@ -59,9 +60,9 @@ pub fn main() !void {
 
     const out_path = out_path_opt orelse return error.MissingArg;
 
-    var buffer: io.Writer.Allocating = .init(gpa);
+    var buffer: std.Io.Writer.Allocating = .init(gpa);
 
-    try scan(&buffer.writer, protocols.items, targets.items, ffi_import);
+    try scan(io, &buffer.writer, protocols.items, targets.items, ffi_import);
 
     const generated = try buffer.toOwnedSliceSentinel(0);
     defer gpa.free(generated);
@@ -70,15 +71,15 @@ pub fn main() !void {
     defer tree.deinit(gpa);
 
     if (tree.errors.len != 0) {
-        try std.zig.printAstErrorsToStderr(gpa, tree, "generated", .auto);
+        try std.zig.printAstErrorsToStderr(gpa, io, tree, "generated", .auto);
         return error.ParseError;
     }
 
-    const out_file = try std.fs.createFileAbsolute(out_path, .{});
-    defer out_file.close();
+    const out_file = try std.Io.Dir.createFileAbsolute(io, out_path, .{});
+    defer out_file.close(io);
 
     var out_buf: [4096]u8 = undefined;
-    var out_writer = out_file.writer(&out_buf);
+    var out_writer = out_file.writer(io, &out_buf);
 
     try tree.render(gpa, &out_writer.interface, .{});
 
@@ -86,7 +87,8 @@ pub fn main() !void {
 }
 
 fn scan(
-    writer: *io.Writer,
+    io: std.Io,
+    writer: *std.Io.Writer,
     protocols: []const []const u8,
     targets: []const Target,
     ffi_import: ?[]const u8,
@@ -95,7 +97,7 @@ fn scan(
     defer scanner.deinit();
 
     for (protocols) |xml_path| {
-        try scanner.scanProtocol(xml_path);
+        try scanner.scanProtocol(io, xml_path);
     }
 
     if (scanner.remaining_targets.items.len != 0) {
@@ -179,7 +181,7 @@ const Side = enum {
 
 const Scanner = struct {
     /// Map from namespace to source code content of the namespace.
-    const Map = std.StringArrayHashMap(io.Writer.Allocating);
+    const Map = std.StringArrayHashMap(std.Io.Writer.Allocating);
     client: Map = Map.init(gpa),
     server: Map = Map.init(gpa),
     common: Map = Map.init(gpa),
@@ -211,14 +213,12 @@ const Scanner = struct {
         map.deinit();
     }
 
-    fn scanProtocol(scanner: *Scanner, xml_path: []const u8) !void {
-        const xml_file = try fs.cwd().openFile(xml_path, .{});
-        defer xml_file.close();
-
+    fn scanProtocol(scanner: *Scanner, io: std.Io, xml_path: []const u8) !void {
         var arena = std.heap.ArenaAllocator.init(gpa);
         defer arena.deinit();
 
-        const xml_bytes = try xml_file.readToEndAlloc(arena.allocator(), 512 * 4096);
+        const xml_bytes = try std.Io.Dir.cwd().readFileAlloc(io, xml_path, gpa, .unlimited);
+        defer gpa.free(xml_bytes);
         const protocol = Protocol.parseXML(arena.allocator(), xml_bytes) catch |err| {
             fatal("failed to parse {s}: {s}", .{ xml_path, @errorName(err) });
         };
@@ -286,7 +286,7 @@ fn parseDescription(arena: mem.Allocator, parser: *xml.Parser) !?[]const u8 {
     return error.UnexpectedEndOfFile;
 }
 
-fn emitVersion(name: []const u8, since: u32, writer: *io.Writer) !void {
+fn emitVersion(name: []const u8, since: u32, writer: *std.Io.Writer) !void {
     try writer.print("pub const @\"{s}_since_version\" = {d};\n", .{ name, since });
 }
 
@@ -448,7 +448,7 @@ const Protocol = struct {
         }
     }
 
-    fn emit(protocol: Protocol, side: Side, targets: []const Target, writer: *io.Writer) !void {
+    fn emit(protocol: Protocol, side: Side, targets: []const Target, writer: *std.Io.Writer) !void {
         for (protocol.version_locked_interfaces) |interface| {
             assert(interface.version == 1);
             try interface.emit(side, 1, protocol.namespace, writer);
@@ -473,7 +473,7 @@ const Protocol = struct {
         }
     }
 
-    fn emitCommon(protocol: Protocol, targets: []const Target, writer: *io.Writer) !void {
+    fn emitCommon(protocol: Protocol, targets: []const Target, writer: *std.Io.Writer) !void {
         for (protocol.version_locked_interfaces) |interface| {
             assert(interface.version == 1);
             try interface.emitCommon(1, writer);
@@ -575,7 +575,7 @@ const Interface = struct {
         return error.UnexpectedEndOfFile;
     }
 
-    fn emit(interface: Interface, side: Side, target_version: u32, namespace: []const u8, writer: *io.Writer) !void {
+    fn emit(interface: Interface, side: Side, target_version: u32, namespace: []const u8, writer: *std.Io.Writer) !void {
         if (interface.description) |desc| {
             try writer.writeByte('\n');
             var iter = mem.splitScalar(u8, mem.trimEnd(u8, desc, &std.ascii.whitespace), '\n');
@@ -828,7 +828,7 @@ const Interface = struct {
         try writer.writeAll("};\n");
     }
 
-    fn emitCommon(interface: Interface, target_version: ?u32, writer: *io.Writer) !void {
+    fn emitCommon(interface: Interface, target_version: ?u32, writer: *std.Io.Writer) !void {
         try writer.print("const {f} = struct {{", .{fmtId(trimPrefix(interface.name))});
 
         try writer.print(
@@ -936,7 +936,7 @@ const Message = struct {
         return error.UnexpectedEndOfFile;
     }
 
-    fn emitField(message: Message, side: Side, writer: *io.Writer) !void {
+    fn emitField(message: Message, side: Side, writer: *std.Io.Writer) !void {
         if (message.description) |desc| {
             try writer.writeByte('\n');
             var iter = mem.splitScalar(u8, mem.trimEnd(u8, desc, &std.ascii.whitespace), '\n');
@@ -970,7 +970,7 @@ const Message = struct {
         try writer.writeAll("},\n");
     }
 
-    fn emitFn(message: Message, side: Side, writer: *io.Writer, interface: Interface, opcode: usize) !void {
+    fn emitFn(message: Message, side: Side, writer: *std.Io.Writer, interface: Interface, opcode: usize) !void {
         if (message.description) |desc| {
             try writer.writeByte('\n');
             var iter = mem.splitScalar(u8, mem.trimEnd(u8, desc, &std.ascii.whitespace), '\n');
@@ -1103,7 +1103,7 @@ const Message = struct {
         try writer.writeAll("}\n");
     }
 
-    fn emitCommon(message: Message, writer: *io.Writer) !void {
+    fn emitCommon(message: Message, writer: *std.Io.Writer) !void {
         try writer.print(
             \\.{{ .name = "{s}", .signature = "
         , .{message.name});
@@ -1214,7 +1214,7 @@ const Arg = struct {
         return error.UnexpectedEndOfFile;
     }
 
-    fn emitSignature(arg: Arg, writer: *io.Writer) !void {
+    fn emitSignature(arg: Arg, writer: *std.Io.Writer) !void {
         switch (arg.kind) {
             .int => try writer.writeByte('i'),
             .uint => try writer.writeByte('u'),
@@ -1236,7 +1236,7 @@ const Arg = struct {
         }
     }
 
-    fn emitType(arg: Arg, side: Side, writer: *io.Writer) !void {
+    fn emitType(arg: Arg, side: Side, writer: *std.Io.Writer) !void {
         switch (arg.kind) {
             .int, .uint => {
                 if (arg.enum_name) |name| {
@@ -1329,7 +1329,7 @@ const Enum = struct {
         return error.UnexpectedEndOfFile;
     }
 
-    fn emit(e: Enum, target_version: u32, writer: *io.Writer) !void {
+    fn emit(e: Enum, target_version: u32, writer: *std.Io.Writer) !void {
         if (e.description) |desc| {
             try writer.writeByte('\n');
             var iter = mem.splitScalar(u8, mem.trimEnd(u8, desc, &std.ascii.whitespace), '\n');
@@ -1450,7 +1450,7 @@ const Case = enum { title, camel };
 
 fn formatCaseImpl(comptime case: Case, comptime trim: bool) type {
     return struct {
-        pub fn f(bytes: []const u8, writer: *io.Writer) io.Writer.Error!void {
+        pub fn f(bytes: []const u8, writer: *std.Io.Writer) std.Io.Writer.Error!void {
             if (case == .camel and std.zig.Token.getKeyword(bytes) != null) {
                 try writer.print("@\"{s}\"", .{bytes});
                 return;
@@ -1485,7 +1485,7 @@ fn camelCaseTrim(bytes: []const u8) fmt.Alt([]const u8, formatCaseImpl(.camel, t
     return .{ .data = bytes };
 }
 
-fn printAbsolute(side: Side, writer: *io.Writer, interface: []const u8) !void {
+fn printAbsolute(side: Side, writer: *std.Io.Writer, interface: []const u8) !void {
     try writer.print("{s}.{s}.{f}", .{
         @tagName(side),
         prefix(interface) orelse return error.MissingPrefix,
@@ -1495,5 +1495,5 @@ fn printAbsolute(side: Side, writer: *io.Writer, interface: []const u8) !void {
 
 inline fn fatal(comptime msg: []const u8, args: anytype) noreturn {
     log.err(msg, args);
-    posix.exit(1);
+    std.process.exit(1);
 }
