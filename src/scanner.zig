@@ -11,7 +11,7 @@ const log = std.log.scoped(.@"zig-wayland");
 const xml = @import("xml.zig");
 
 const gpa = general_purpose_allocator.allocator();
-var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
+var general_purpose_allocator: std.heap.DebugAllocator(.{}) = .init;
 
 pub const Target = struct {
     /// Name of the target global interface
