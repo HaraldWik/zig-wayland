@@ -181,10 +181,10 @@ const Side = enum {
 
 const Scanner = struct {
     /// Map from namespace to source code content of the namespace.
-    const Map = std.StringArrayHashMap(std.Io.Writer.Allocating);
-    client: Map = Map.init(gpa),
-    server: Map = Map.init(gpa),
-    common: Map = Map.init(gpa),
+    const Map = std.array_hash_map.String(std.Io.Writer.Allocating);
+    client: Map = .empty,
+    server: Map = .empty,
+    common: Map = .empty,
 
     remaining_targets: std.ArrayListUnmanaged(Target),
 
@@ -198,19 +198,19 @@ const Scanner = struct {
     }
 
     fn deinit(scanner: *Scanner) void {
-        deinit_map(&scanner.client);
-        deinit_map(&scanner.server);
-        deinit_map(&scanner.common);
+        deinitMap(&scanner.client);
+        deinitMap(&scanner.server);
+        deinitMap(&scanner.common);
 
         scanner.remaining_targets.deinit(gpa);
     }
 
-    fn deinit_map(map: *Map) void {
+    fn deinitMap(map: *Map) void {
         for (map.keys()) |namespace| gpa.free(namespace);
         for (map.values()) |*list| {
             list.deinit();
         }
-        map.deinit();
+        map.deinit(gpa);
     }
 
     fn scanProtocol(scanner: *Scanner, io: std.Io, xml_path: []const u8) !void {
@@ -224,7 +224,7 @@ const Scanner = struct {
         };
 
         {
-            const gop = try scanner.client.getOrPutValue(protocol.namespace, .init(gpa));
+            const gop = try scanner.client.getOrPutValue(gpa, protocol.namespace, .init(gpa));
             if (!gop.found_existing) {
                 gop.key_ptr.* = try gpa.dupe(u8, protocol.namespace);
             }
@@ -232,7 +232,7 @@ const Scanner = struct {
         }
 
         {
-            const gop = try scanner.server.getOrPutValue(protocol.namespace, .init(gpa));
+            const gop = try scanner.server.getOrPutValue(gpa, protocol.namespace, .init(gpa));
             if (!gop.found_existing) {
                 gop.key_ptr.* = try gpa.dupe(u8, protocol.namespace);
             }
@@ -240,7 +240,7 @@ const Scanner = struct {
         }
 
         {
-            const gop = try scanner.common.getOrPutValue(protocol.namespace, .init(gpa));
+            const gop = try scanner.common.getOrPutValue(gpa, protocol.namespace, .init(gpa));
             if (!gop.found_existing) {
                 gop.key_ptr.* = try gpa.dupe(u8, protocol.namespace);
             }
@@ -320,8 +320,8 @@ const Protocol = struct {
         var toplevel_description: ?[]const u8 = null;
         var version_locked_interfaces: std.ArrayList(Interface) = .empty;
         defer version_locked_interfaces.deinit(gpa);
-        var interfaces = std.StringArrayHashMap(Interface).init(gpa);
-        defer interfaces.deinit();
+        var interfaces: std.array_hash_map.String(Interface) = .empty;
+        defer interfaces.deinit(gpa);
 
         while (parser.next()) |ev| switch (ev) {
             .open_tag => |tag| {
@@ -342,7 +342,7 @@ const Protocol = struct {
                     if (Interface.version_locked(interface.name)) {
                         try version_locked_interfaces.append(gpa, interface);
                     } else {
-                        const gop = try interfaces.getOrPut(interface.name);
+                        const gop = try interfaces.getOrPut(gpa, interface.name);
                         if (gop.found_existing) return error.DuplicateInterfaceName;
                         gop.value_ptr.* = interface;
                     }
@@ -380,23 +380,23 @@ const Protocol = struct {
         return error.UnexpectedEndOfFile;
     }
 
-    fn find_globals(arena: mem.Allocator, interfaces: std.StringArrayHashMap(Interface)) ![]const Global {
-        var non_globals = std.StringHashMap(void).init(gpa);
-        defer non_globals.deinit();
+    fn find_globals(arena: mem.Allocator, interfaces: std.array_hash_map.String(Interface)) ![]const Global {
+        var non_globals: std.array_hash_map.String(void) = .empty;
+        defer non_globals.deinit(gpa);
 
         for (interfaces.values()) |interface| {
             assert(!Interface.version_locked(interface.name));
             for (interface.requests) |message| {
                 if (message.kind == .constructor) {
                     if (message.kind.constructor) |child_interface_name| {
-                        try non_globals.put(child_interface_name, {});
+                        try non_globals.put(gpa, child_interface_name, {});
                     }
                 }
             }
             for (interface.events) |message| {
                 if (message.kind == .constructor) {
                     if (message.kind.constructor) |child_interface_name| {
-                        try non_globals.put(child_interface_name, {});
+                        try non_globals.put(gpa, child_interface_name, {});
                     }
                 }
             }
@@ -407,10 +407,10 @@ const Protocol = struct {
 
         for (interfaces.values()) |interface| {
             if (!non_globals.contains(interface.name)) {
-                var children = std.StringArrayHashMap(Interface).init(gpa);
-                defer children.deinit();
+                var children: std.array_hash_map.String(Interface) = .empty;
+                defer children.deinit(gpa);
 
-                try find_children(interface, interfaces, &children);
+                try findChildren(interface, interfaces, &children);
 
                 try globals.append(gpa, .{
                     .interface = interface,
@@ -422,10 +422,10 @@ const Protocol = struct {
         return arena.dupe(Global, globals.items);
     }
 
-    fn find_children(
+    fn findChildren(
         parent: Interface,
-        interfaces: std.StringArrayHashMap(Interface),
-        children: *std.StringArrayHashMap(Interface),
+        interfaces: std.array_hash_map.String(Interface),
+        children: *std.array_hash_map.String(Interface),
     ) error{ OutOfMemory, InvalidInterface }!void {
         for ([_][]const Message{ parent.requests, parent.events }) |messages| {
             for (messages) |message| {
@@ -440,8 +440,8 @@ const Protocol = struct {
                             });
                             return error.InvalidInterface;
                         };
-                        try children.put(child_name, child);
-                        try find_children(child, interfaces, children);
+                        try children.put(gpa, child_name, child);
+                        try findChildren(child, interfaces, children);
                     }
                 }
             }
